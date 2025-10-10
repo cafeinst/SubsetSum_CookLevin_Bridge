@@ -1,6 +1,6 @@
 theory SubsetSum_CookLevin_Bridge
   imports
-    Main "Cook_Levin.NP" "SubsetSum_DTM_Bridge"
+    Main "Cook_Levin.NP" "SubsetSum_DTM_Bridge" "SubsetSum_DTM_Bridge2"
 begin
 
 text ‹
@@ -135,9 +135,9 @@ locale CL_Cov_Params =
     and to_bits :: "nat ⇒ int ⇒ bool list"
     and from_bits :: "bool list ⇒ int"
     and kk :: nat
-    and enc  :: "int list ⇒ int ⇒ nat ⇒ bool list"
     and padL :: "int list ⇒ int ⇒ nat ⇒ bool list"
     and padR :: "int list ⇒ int ⇒ nat ⇒ bool list"
+    and enc  :: "int list ⇒ int ⇒ nat ⇒ bool list"
   assumes step_sem':
     "⋀x t. conf' M' x (Suc t) =
            stepf' (conf' M' x t) (x ! nat (head0' (conf' M' x t)))"
@@ -167,6 +167,8 @@ locale CL_Cov_Params =
             ((!) (enc as s kk)) ((!) (enc as s kk))"
   and padL_eq: "⋀as s k. padL as s k = SubsetSum_Padded_Enc.padL to_bits as s k"
   and padR_eq: "⋀as s k. padR as s k = SubsetSum_Padded_Enc.padR to_bits as s k"
+  and enc_is_concrete:
+    "⋀as s k. enc as s k = SubsetSum_Padded_Enc.enc enc0 to_bits as s k"
 begin
 
 (* Abbreviations to match the DTM/CL names *)
@@ -212,48 +214,114 @@ interpretation Cov: Coverage_TM
   M_CL     stepf_CL final_acc_CL
   enc0     to_bits  from_bits kk
 proof (unfold_locales)
-(* bits round-trip *)
+
+  (* 0) handy inclusion fact we’ll use for read-window confinement *)
+  have incl:
+  "(λt. nat (head0' (conf' M' (enc as s kk) t))) ` {..< steps' M' (enc as s kk)}
+    ⊆ { length (enc0 as s) ..< length (enc0 as s)
+      + length (SubsetSum_Padded_Enc.padL to_bits as s kk)
+      + length (SubsetSum_Padded_Enc.padR to_bits as s kk) }"
+    for as s
+    unfolding head0_CL_def conf_CL_def steps_CL_def M_CL_def x0_def
+    by (simp add: read0_after_enc0' padL_eq padR_eq)
+
+  (* 1) bits round-trip *)
   show "⋀as s k v.
           v ∈ set (enumL as s k) ∪ set (enumR as s k) ⟹
           length (to_bits (W as s) v) = W as s ∧
           from_bits (to_bits (W as s) v) = v"
     by (rule bits_roundtrip')
 
-  (* acceptance = Coverage_TM.good *)
-  show "⋀as s.
-          accepts_CL M_CL (x0 as s) =
-          Coverage_TM.good enc0 from_bits kk as s
-            ((!) (x0 as s)) ((!) (x0 as s))"
-  proof (intro allI)
+  (* 2) acceptance equals Coverage_TM.good (rewrite through Good_CL) *)
+  show "⋀as s. accepts_CL M_CL (SubsetSum_Padded_Enc.enc enc0 to_bits as s kk) =
+         (∃jL<length (enumL as s kk).∃jR<length (enumR as s kk).
+              from_bits
+                (map ((!) (SubsetSum_Padded_Enc.enc enc0 to_bits as s kk))
+                  [length (enc0 as s) + offL as s jL
+                   ..< length (enc0 as s) + offL as s jL + W as s]) =
+              from_bits
+                (map ((!) (SubsetSum_Padded_Enc.enc enc0 to_bits as s kk))
+                  [length (enc0 as s) + offR as s kk jR
+                   ..< length (enc0 as s) + offR as s kk jR + W as s]))"
+  proof-
     fix as s
-    have "accepts_CL M_CL (x0 as s) =
-            Good_CL enc0 to_bits from_bits kk as s
-              ((!) (x0 as s)) ((!) (x0 as s))"
-      unfolding M_CL_def accepts_CL_def x0_def
-      by (simp add: correctness_cov')
-    also have "... =
-            Coverage_TM.good enc0 from_bits kk as s
-              ((!) (x0 as s)) ((!) (x0 as s))"
-      by (simp add: Good_CL_def Lval_at_CL_def Rval_at_CL_def
-                    Coverage_TM.good_def
-                    Coverage_TM.Lval_at_def Coverage_TM.Rval_at_def)
-    finally show ?thesis .
+    have A:
+      "accepts_CL M_CL (x0 as s) =
+       Good_CL enc0 to_bits from_bits kk as s
+         ((!) (x0 as s)) ((!) (x0 as s))"
+      unfolding M_CL_def accepts_CL_def x0_def using correctness_cov'
+      by (simp add: enc_is_concrete)
+    have B:
+      "Good_CL enc0 to_bits from_bits kk as s
+       ((!) (x0 as s)) ((!) (x0 as s)) =
+        (∃jL<length (enumL as s kk).∃jR<length (enumR as s kk).
+          from_bits (map ((!) (x0 as s))
+                   [length (enc0 as s) + offL as s jL
+                    ..< length (enc0 as s) + offL as s jL + W as s]) =
+          from_bits (map ((!) (x0 as s))
+                   [length (enc0 as s) + offR as s kk jR
+                    ..< length (enc0 as s) + offR as s kk jR + W as s]))"
+      by (simp add: Good_CL_def Lval_at_CL_def Rval_at_CL_def)
+    from A B
+    show "accepts_CL M_CL (SubsetSum_Padded_Enc.enc enc0 to_bits as s kk) =
+        (∃jL<length (enumL as s kk).
+           ∃jR<length (enumR as s kk).
+             from_bits
+               (map ((!) (SubsetSum_Padded_Enc.enc enc0 to_bits as s kk))
+                 [length (enc0 as s) + offL as s jL
+                  ..< length (enc0 as s) + offL as s jL + W as s]) =
+             from_bits
+               (map ((!) (SubsetSum_Padded_Enc.enc enc0 to_bits as s kk))
+                 [length (enc0 as s) + offR as s kk jR
+                  ..< length (enc0 as s) + offR as s kk jR + W as s]))"
+      by (simp add: x0_def)
   qed
 
-  (* read-window confinement *)
-  have incl:
-    "(λt. nat (head0_CL (conf_CL M_CL (x0 as s) t))) `
-       {..< steps_CL M_CL (x0 as s)}
-     ⊆ { length (enc0 as s) ..<
-          length (enc0 as s) + length (padL as s kk) + length (padR as s kk) }"
-    for as s
-    unfolding head0_CL_def conf_CL_def steps_CL_def M_CL_def x0_def
-    by (rule read0_after_enc0'[of as s])
+  (* 3) read-window confinement — NOTE: use CL.Base.read0, not DTM_Run_Sem.Base.read0 *)
   show "⋀as s.
-         CL.Base.read0 M_CL (x0 as s)
-         ⊆ { length (enc0 as s) ..<
-              length (enc0 as s) + length (padL as s kk) + length (padR as s kk) }"
-    using incl by (simp add: CL.Base.read0_def)
+    CL.Base.read0 M_CL (SubsetSum_Padded_Enc.enc enc0 to_bits as s kk) ⊆
+    { length (enc0 as s) ..<
+    length (enc0 as s)
+    + length (SubsetSum_Padded_Enc.padL to_bits as s kk)
+    + length (SubsetSum_Padded_Enc.padR to_bits as s kk) }"
+  proof-
+    fix as s
+    have H:
+    "(λt. nat (head0_CL
+           (conf_CL M_CL (SubsetSum_Padded_Enc.enc enc0 to_bits as s kk) t))) `
+     {..< steps_CL M_CL (SubsetSum_Padded_Enc.enc enc0 to_bits as s kk)} ⊆
+     { length (enc0 as s) ..<
+      length (enc0 as s)
+      + length (SubsetSum_Padded_Enc.padL to_bits as s kk)
+      + length (SubsetSum_Padded_Enc.padR to_bits as s kk) }"
+      unfolding head0_CL_def conf_CL_def steps_CL_def M_CL_def
+      using read0_after_enc0'[of as s]
+      by (simp add: enc_is_concrete)
+    show "CL.Base.read0 M_CL (SubsetSum_Padded_Enc.enc enc0 to_bits as s kk) ⊆
+        { length (enc0 as s) ..<
+          length (enc0 as s)
+          + length (SubsetSum_Padded_Enc.padL to_bits as s kk)
+          + length (SubsetSum_Padded_Enc.padR to_bits as s kk) }"
+      using H by (simp add: CL.Base.read0_def)
+  qed
+  (* 4–6) definitional equations required by Coverage_TM *)
+  show "⋀as s oL j.
+       Lval_at as s oL j ≡
+       from_bits
+         (map oL [length (enc0 as s) + offL as s j
+                  ..< length (enc0 as s) + offL as s j + W as s])"
+  by (simp add: Coverage_TM.Lval_at_def)
+  show "⋀as s oR j.
+       Rval_at as s oR j ≡
+       from_bits
+         (map oR [length (enc0 as s) + offR as s kk j
+                  ..< length (enc0 as s) + offR as s kk j + W as s])"
+  by (simp add: Coverage_TM.Rval_at_def)
+  show "⋀as s oL oR.
+       good as s oL oR ≡
+       (∃jL<length (enumL as s kk). ∃jR<length (enumR as s kk).
+          Lval_at as s oL jL = Rval_at as s oR jR)"
+  by (simp add: Coverage_TM.good_def)
 qed
 end
 end
