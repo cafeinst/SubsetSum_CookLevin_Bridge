@@ -1,7 +1,7 @@
 theory SubsetSum_CookLevin_Bridge
   imports
     "Cook_Levin.NP"
-    "SubsetSum_DTM_Bridge2"
+    "SubsetSum_DTM_Bridge3"
 begin
 
 (* ========================================================================= *)
