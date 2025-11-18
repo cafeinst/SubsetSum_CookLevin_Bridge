@@ -133,6 +133,28 @@ theorem no_polytime_TM_on_distinct_family:
               steps as s ≤ nat (ceiling (c * (real (length as)) ^ d)))"
   using no_polytime_decider_on_distinct_family by simp
 
+corollary no_polytime_TM_on_all_inputs:
+  shows "¬ (∃(c::real)>0. ∃(d::nat).
+             ∀as s. steps as s ≤ nat (ceiling (c * (real (length as)) ^ d)))"
+proof
+  assume ex_all:
+    "∃(c::real)>0. ∃(d::nat).
+       ∀as s. steps as s ≤ nat (ceiling (c * (real (length as)) ^ d))"
+  then obtain c d where cpos: "c > 0"
+    and bound_all: "∀as s. steps as s ≤ nat (ceiling (c * (real (length as)) ^ d))"
+    by blast
+
+  (* If it's polytime on all inputs, it's polytime on the distinct family *)
+  hence ex_distinct:
+    "∃(c::real)>0. ∃(d::nat).
+       ∀as s. distinct_subset_sums as ⟶
+         steps as s ≤ nat (ceiling (c * (real (length as)) ^ d))"
+    by blast
+
+  from no_polytime_TM_on_distinct_family and ex_distinct
+  show False by contradiction
+qed
+
 text ‹Combining with steps_def, this says: there is no way to choose a
   Cook–Levin machine M and encoder enc that solve the distinct-subset-sum
   family, have the coverage properties (coverage_ex/steps_lb), and run in
@@ -162,6 +184,34 @@ proof
   thus False
     using no_polytime_TM_on_distinct_family by blast
 qed
+
+corollary no_polytime_CL_machine_on_all_inputs:
+  shows "¬ (∃(c::real)>0. ∃(d::nat).
+             ∀as s. steps_CL M (enc as s)
+                     ≤ nat (ceiling (c * (real (length as)) ^ d)))"
+proof
+  assume ex_all:
+    "∃(c::real)>0. ∃(d::nat).
+       ∀as s. steps_CL M (enc as s)
+               ≤ nat (ceiling (c * (real (length as)) ^ d))"
+  then obtain c d where cpos: "c > 0"
+    and bound_all:
+      "∀as s. steps_CL M (enc as s)
+               ≤ nat (ceiling (c * (real (length as)) ^ d))"
+    by blast
+
+  (* Again: polytime on all inputs ⇒ polytime on distinct subset-sum family *)
+  hence ex_distinct:
+    "∃(c::real)>0. ∃(d::nat).
+       ∀as s. distinct_subset_sums as ⟶
+         steps_CL M (enc as s)
+           ≤ nat (ceiling (c * (real (length as)) ^ d))"
+    by blast
+
+  from no_polytime_CL_machine_on_distinct_family and ex_distinct
+  show False by contradiction
+qed
+
 
 end  (* locale SubsetSum_TM_Reader *)
 
