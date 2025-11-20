@@ -6,6 +6,47 @@ begin
 
 section ‹Cook–Levin bridge for the subset-sum lower bound›
 
+text ‹
+  STRUCTURE OF THIS THEORY
+
+  • On the decision-tree side, the theory ‹SubsetSum_DecisionTree› proves
+    a lower bound of Ω(√(2^n)) for any “flip-complete reader” model of
+    SUBSET-SUM.
+
+  • In this file, we connect that abstract model to the concrete
+    Cook–Levin Turing-machine model (‹Cook_Levin.NP›) in several layers:
+
+      – ‹CL_SubsetSum_Solver›:
+          A machine M with encoding enc that *correctly decides* the
+          mathematical predicate ‹subset_sum_true›.
+
+      – ‹Eq_ReadLR_SubsetSum_Solver›:
+          Strengthens ‹CL_SubsetSum_Solver› by saying that M decides
+          SUBSET-SUM via an equality of two “sides” (lhs, rhs) and that,
+          on distinct-subset-sum instances, it must read at least one bit
+          from the part of the input encoding the left side and at least
+          one bit from the part encoding the right side.
+
+      – ‹Flip_Complete_TM›:
+          A stronger structural assumption: the machine behaves like a
+          “flip-complete reader” in the sense of ‹SubsetSum_DecisionTree›,
+          with abstractly specified seen sets ‹seenL› and ‹seenR›.  Inside
+          this locale, the decision-tree lower bound is inherited to give
+          an Ω(√(2^n)) runtime lower bound and the “no polynomial-time”
+          corollaries for such machines.
+
+      – ‹All_SubsetSum_Polytime_Flip_Complete›:
+          A meta-assumption saying that *every* polynomial-time CL solver
+          for SUBSET-SUM is in fact flip-complete.  Under this assumption
+          we conclude that there is no polynomial-time Cook–Levin machine
+          deciding SUBSET-SUM.
+
+  The main point is that all nontrivial lower-bound reasoning is carried
+  out *inside* these locales; the gap to a full P ≠ NP statement is
+  precisely the meta-assumption that every polynomial-time solver is
+  flip-complete.
+›
+
 lemma exp_beats_poly_ceiling_strict_TM:
   fixes c :: real and d :: nat
   assumes cpos: "c > 0"
@@ -154,7 +195,6 @@ definition subset_sum_true :: "int list ⇒ int ⇒ bool" where
      (∃xs ∈ bitvec (length as).
         (∑ i<length as. as ! i * xs ! i) = s)"
 
-
 subsection ‹A Cook–Levin machine that solves SUBSET-SUM›
 
 text ‹
@@ -191,12 +231,93 @@ lemma read0_TM_subset:
 
 end  (* context CL_SubsetSum_Solver *)
 
+subsection ‹Equation-based read requirement›
+
+text ‹
+  This locale expresses the idea that the machine decides SUBSET-SUM
+  by checking equality of two “sides” of an equation.  Conceptually,
+  there is some base equation
+
+      l(as, s) = r(as, s)
+
+  such that (as,s) is in the language iff this equation holds.  We allow
+  the machine to work with any *equivalent* equation, e.g. of the form
+
+      f(l(as,s)) = f(r(as,s))
+
+  for some injective function f; all of this is abstracted into the
+  two functions ‹lhs› and ‹rhs›, and the correctness assumption
+
+      subset_sum_true as s ⟷ lhs as s = rhs as s.
+
+  The sets ‹L_zone as s› and ‹R_zone as s› describe the input positions
+  (in ‹enc as s›) that encode the left- and right-hand sides of this
+  deciding equation.  The assumption ‹must_read_LR› then says:
+
+      – on every distinct-subset-sums instance (as,s),
+        the machine’s read set ‹read0_TM as s› intersects L_zone as s, and
+      – it also intersects R_zone as s.
+
+  In other words: on “hard” instances, the machine must read at least one
+  bit from the part of the input encoding the left side and at least one
+  bit from the part encoding the right side of some deciding equation
+  equivalent to l = r.
+›
+
+locale Eq_ReadLR_SubsetSum_Solver =
+  CL_SubsetSum_Solver +
+  fixes lhs rhs :: "int list ⇒ int ⇒ int"
+    and L_zone R_zone :: "int list ⇒ int ⇒ nat set"
+  assumes equation_correct:
+    "⋀as s. subset_sum_true as s ⟷ (lhs as s = rhs as s)"
+  assumes zones_wf:
+    "⋀as s. L_zone as s ⊆ {..< length (enc as s)}"
+    "⋀as s. R_zone as s ⊆ {..< length (enc as s)}"
+    "⋀as s. L_zone as s ∩ R_zone as s = {}"
+  assumes must_read_LR:
+    "⋀as s. distinct_subset_sums as ⟹
+        read0_TM as s ∩ L_zone as s ≠ {} ∧
+        read0_TM as s ∩ R_zone as s ≠ {}"
+text ‹
+  RELATION TO ‹Flip_Complete_TM›
+
+  The locale ‹Eq_ReadLR_SubsetSum_Solver› isolates a very weak,
+  adversary-style requirement:
+
+    • SUBSET-SUM is decided via some equation
+        lhs as s = rhs as s
+      (up to injective re-encoding, e.g. f(l) = f(r)),
+
+    • and on distinct-subset-sums instances the machine must read at
+      least one bit from the part of the input encoding the “left side”
+      and at least one bit from the part encoding the “right side”
+      (‹L_zone as s› and ‹R_zone as s›).
+
+  The locale ‹Flip_Complete_TM› is strictly stronger and more structured:
+  it assumes the existence of abstract “seen” sets ‹seenL›, ‹seenR› that
+  match the canonical LHS/RHS partial-sum splits used in the decision-tree
+  lower bound.  Inside ‹Flip_Complete_TM› we can instantiate the abstract
+  reader model from ‹SubsetSum_DecisionTree› and derive the Ω(√(2^n))
+  lower bound and the “no polynomial-time” corollaries.
+
+  Intuitively, any flip-complete Turing machine is expected to satisfy
+  some instance of ‹Eq_ReadLR_SubsetSum_Solver›: if its behaviour lines up
+  with the canonical LHS/RHS splits, then there should be a deciding
+  equation and corresponding zones that witness the “must read one bit of
+  L and one bit of R” property.  In this theory we keep that connection at
+  the level of intuition/documentation; all lower-bound proofs rely only
+  on the stronger ‹Flip_Complete_TM› assumptions.
+›
 
 section ‹Flip-complete TM interface and lower bound inheritance›
 
-text ‹A Cook–Levin machine is polynomial-time on SUBSET-SUM if its
+text ‹
+  A Cook–Levin machine is polynomial-time on SUBSET-SUM if its
   running time on the encoding of (as,s) is bounded by some polynomial
-  in the length of as.›
+  in the length of the weight list as (≃ input size).  We take this
+  as the basic complexity measure; the bit-length of the encoding
+  ‹enc as s› is allowed to be some fixed polynomial in ‹length as›.
+›
 
 definition polytime_CL_machine
   :: "machine ⇒ (int list ⇒ int ⇒ bool list) ⇒ bool"
@@ -205,100 +326,6 @@ where
      (∃(c::real)>0. ∃(d::nat).
         ∀as s. steps_CL M (enc as s)
                ≤ nat (ceiling (c * (real (length as)) ^ d)))"
-
-text ‹
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-     INTERPRETATION OF THE LOCALE  ‹Flip_Complete_TM›
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  The purpose of this locale is to lift the abstract decision-tree lower bound
-  for SUBSET-SUM (proved in ‹SubsetSum_DecisionTree›) to the level of a
-  Cook–Levin Turing machine.
-
-  A structure ‹M, q0, enc› is assumed to satisfy the locale
-  ‹CL_SubsetSum_Solver›, meaning:
-
-     • M is a well-formed deterministic Cook–Levin Turing machine
-       with k_tapes = 2,
-
-     • enc : (as,s) ↦ bool-list is any encoding of SUBSET-SUM instances, and
-
-     • M decides the mathematical predicate ‹subset_sum_true›:
-         accepts_CL M (enc as s)  ↔  subset_sum_true as s.
-
-  The locale ‹Flip_Complete_TM› introduces *two additional* assumptions,
-  mirroring the structure of the abstract “reader” model:
-
-     1.  ‹coverage_ex›   (global flip-completeness)
-     2.  ‹steps_lb›      (runtime ≥ number of distinguished possibilities)
-
-  These assumptions are *structural restrictions* on the behaviour of M.
-  They do NOT hold for all Turing machines.
-
-  ────────────────────────────────────────────────────────────────────────────
-  ASSUMPTION 1 — COVERAGE  (flip–completeness)
-  ────────────────────────────────────────────────────────────────────────────
-  For every “hard” weight-list with distinct subset sums, the machine M must,
-  at some time k ≤ length as, have explored enough information on its input
-  tape to *realize one of the canonical adversarial splits*:
-
-       {seenL as s k, seenR as s k} = {LHS(e_k as s k), RHS(e_k as s k)}
-
-  This is a strong requirement: it asserts that, on hard instances,
-  the TM’s behaviour matches the combinatorial structure exploited in the
-  decision-tree lower bound.  In particular it forbids shortcuts, global
-  properties, or algebraic optimizations that do not correspond to such
-  a split.
-
-  ────────────────────────────────────────────────────────────────────────────
-  ASSUMPTION 2 — STEPS  (runtime ≥ information distinguished)
-  ────────────────────────────────────────────────────────────────────────────
-  The runtime of M on (as,s) is at least the total number of left- and
-  right-hand partial sums that its computation has (abstractly) distinguished:
-
-       steps_TM as s  ≥  card(seenL as s k) + card(seenR as s k)
-
-  This matches the “reader” model: each distinguished value corresponds,
-  morally, to a Turing-machine branch that must have been examined.
-
-  This is not a property of arbitrary Turing machines — it enforces that
-  M’s behaviour is essentially *search-like*, distinguishing possibilities
-  one at a time.
-
-  ────────────────────────────────────────────────────────────────────────────
-  INTERPRETATION
-  ────────────────────────────────────────────────────────────────────────────
-
-  Under these two structural assumptions, the lower-bound theory from
-  ‹SubsetSum_DecisionTree› can be instantiated with:
-
-       steps  ≡ steps_TM          (Cook–Levin execution length)
-       seenL, seenR               (abstractly provided “distinguished sets”)
-
-  yielding:
-
-     • an Ω( √(2^n) ) lower bound on steps_TM,
-     • and impossibility of any polynomial upper bound
-       on the distinct-subset-sums family.
-
-  ────────────────────────────────────────────────────────────────────────────
-  IMPORTANT
-  ────────────────────────────────────────────────────────────────────────────
-
-  This locale does NOT claim that *every* Turing machine deciding SUBSET-SUM
-  satisfies flip-completeness or the steps lower-bound.
-  Doing so would imply an unconditional exponential lower bound for
-  SUBSET-SUM, and therefore P ≠ NP.
-
-  Instead, the theorems in this locale hold for *any* Cook–Levin machine
-  whose behaviour fits the flip-complete / reader-like pattern above.
-  This identifies a broad and natural subclass of machines for which the
-  decision-tree adversary lower bound automatically lifts to the
-  Cook–Levin model.
-
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-›
-
 
 locale Flip_Complete_TM =
   CL_SubsetSum_Solver +
@@ -313,17 +340,48 @@ locale Flip_Complete_TM =
     "⋀as s k. steps_TM as s ≥ card (seenL as s k) + card (seenR as s k)"
 begin
 
-interpretation Reader: SubsetSum_Reader_NoK steps_TM seenL seenR
+(* Derive the SubsetSum_Lemma1 axiom for steps_TM from coverage_ex + steps_lb *)
+lemma lemma1_ex_TM:
+  "⋀as s n. n = length as ⟹ distinct_subset_sums as ⟹
+     ∃k≤n. card (LHS (e_k as s k) n) + card (RHS (e_k as s k) n) ≤ steps_TM as s"
+proof -
+  fix as :: "int list" and s :: int and n :: nat
+  assume n_def: "n = length as"
+     and dist:  "distinct_subset_sums as"
+
+  from coverage_ex[OF dist]
+  obtain k where k_le_len: "k ≤ length as"
+    and L_eq: "seenL as s k = LHS (e_k as s k) (length as)"
+    and R_eq: "seenR as s k = RHS (e_k as s k) (length as)"
+    by blast
+
+  have k_le_n: "k ≤ n" using k_le_len n_def by simp
+
+  have step_bound:
+    "steps_TM as s ≥ card (seenL as s k) + card (seenR as s k)"
+    using steps_lb by blast
+
+  have "card (LHS (e_k as s k) n) + card (RHS (e_k as s k) n)
+        = card (LHS (e_k as s k) (length as)) + card (RHS (e_k as s k) (length as))"
+    by (simp add: n_def)
+  also have "… = card (seenL as s k) + card (seenR as s k)"
+    by (simp add: L_eq R_eq)
+  finally have
+    "card (LHS (e_k as s k) n) + card (RHS (e_k as s k) n)
+     ≤ steps_TM as s"
+    using step_bound by simp
+
+  thus "∃k≤n. card (LHS (e_k as s k) n) + card (RHS (e_k as s k) n)
+               ≤ steps_TM as s"
+    using k_le_n by blast
+qed
+
+interpretation Reader: SubsetSum_Lemma1 steps_TM
 proof
-  show "⋀as s. distinct_subset_sums as ⟹
-          ∃k≤length as.
-            seenL as s k = LHS (e_k as s k) (length as) ∧
-            seenR as s k = RHS (e_k as s k) (length as)"
-    using coverage_ex by blast
-next
-  show "⋀as s k. steps_TM as s ≥
-           card (seenL as s k) + card (seenR as s k)"
-    using steps_lb by simp
+  show "⋀as s n. n = length as ⟹ distinct_subset_sums as ⟹
+          ∃k≤n. card (LHS (e_k as s k) n) + card (RHS (e_k as s k) n)
+               ≤ steps_TM as s"
+    by (rule lemma1_ex_TM)
 qed
 
 subsection ‹Inherited Ω(√(2^n)) lower bound for this TM›
@@ -473,80 +531,6 @@ begin
 section ‹Complexity-theoretic interpretation: SUBSET-SUM and P vs NP›
 
 text ‹
-  We briefly explain how the formal results in this theory relate to the
-  classical P vs NP question, at a conceptual level.
-
-  • The HOL side (‹SubsetSum_DecisionTree›) developed an abstract, purely
-    combinatorial lower bound: any “flip-complete reader” for SUBSET-SUM
-    must use at least Ω(√(2^n)) steps on instances of length ‹n›,
-    even when restricted to families with distinct subset sums.
-
-  • In this theory we built a bridge to the concrete Cook–Levin Turing
-    machine model (‹Cook_Levin.NP›).  A Cook–Levin machine ‹M› with an
-    encoding ‹enc› is said to solve SUBSET-SUM if it satisfies the locale
-    ‹CL_SubsetSum_Solver›, i.e.
-      – ‹turing_machine k_tapes q0 M›, and
-      – ‹accepts_CL M (enc as s) ⟷ subset_sum_true as s›
-        for all weight lists ‹as› and targets ‹s›.
-
-  • We then defined ‹polytime_CL_machine M enc› to mean that the running
-    time ‹steps_CL M (enc as s)› is bounded by some polynomial in
-    ‹length as›, uniformly for all ‹as› and ‹s›.
-
-  • The locale ‹Flip_Complete_TM› axiomatizes the existence of “seen”
-    sets ‹seenL›, ‹seenR› and structural coverage + lower-bound properties
-    that make the Cook–Levin machine an instance of the abstract
-    flip-complete reader.  Inside this locale we proved:
-
-      – an Ω(√(2^n)) lower bound for ‹steps_CL M (enc as s)› on the
-        distinct-subset-sums family, and
-
-      – theorems ‹no_polytime_TM_on_distinct_family› and
-        ‹no_polytime_CL_on_distinct_family›, which assert that *no*
-        such flip-complete machine can be polynomial-time on that family.
-
-  • Finally, the meta-locale
-      ‹All_SubsetSum_Polytime_Flip_Complete›
-    assumes that *every* polynomial-time Cook–Levin machine that correctly
-    decides SUBSET-SUM is in fact flip-complete (i.e. admits suitable
-    ‹seenL›, ‹seenR› and satisfies ‹Flip_Complete_TM›).  Under this single
-    meta-assumption, we proved:
-
-      theorem no_polytime_CL_subset_sum:
-        "¬ (∃M q0 enc.
-              CL_SubsetSum_Solver M q0 enc ∧
-              polytime_CL_machine M enc)"
-
-    In plain words:
-
-      ‹If every polynomial-time CL solver for SUBSET-SUM is flip-complete,
-       then there is no polynomial-time CL solver for SUBSET-SUM at all.›
-
-  Conceptually, this gets us very close to a P ≠ NP conclusion:
-
-    – In the standard Cook–Levin framework, SUBSET-SUM is NP-complete.
-      Intuitively, if SUBSET-SUM were in P, there should exist a
-      polynomial-time Cook–Levin machine ‹M› and encoding ‹enc› that
-      satisfy ‹CL_SubsetSum_Solver M q0 enc› and ‹polytime_CL_machine M enc›.
-
-    – Our theorem ‹no_polytime_CL_subset_sum› shows that, *assuming*
-      every such polynomial-time solver is flip-complete, no such pair
-      ‹(M,enc)› can exist.
-
-    – Thus, together with the usual NP-completeness machinery and a
-      formal bridge from polynomial-time Turing machines to
-      Cook–Levin machines, the meta-assumption
-      ‹All_SubsetSum_Polytime_Flip_Complete› would yield that SUBSET-SUM
-      is not in P, and hence P ≠ NP.
-
-  At present, this theory stops one step short of a full P ≠ NP proof:
-  the gap is cleanly isolated in the meta-assumption that every
-  polynomial-time solver is flip-complete.  All the combinatorial and
-  machine-theoretic lower-bound reasoning *inside* that assumption is
-  fully formalized.
-›
-
-text ‹
   Under the above assumption, there cannot exist any polynomial-time
   Cook–Levin machine that solves SUBSET-SUM.
 ›
@@ -566,19 +550,12 @@ proof
 
   (* From the meta-assumption, this solver must be flip-complete. *)
   from all_polytime_flip[OF solver poly]
-  obtain seenL seenR where
-    flip: "Flip_Complete_TM M q0 enc seenL seenR"
-    by blast
-
-  (* Polytime on all inputs trivially implies a polynomial bound on
-     the distinct-subset-sums family. *)
-
-  from flip obtain seenL seenR
-    where flip_inst: "Flip_Complete_TM M q0 enc seenL seenR"
+  obtain seenL seenR where flip_inst:
+    "Flip_Complete_TM M q0 enc seenL seenR"
     by blast
 
   from flip_inst interpret Flip: Flip_Complete_TM M q0 enc seenL seenR
-    by (simp)
+    by simp
 
   from poly obtain c d where
     cpos: "c > 0" and
