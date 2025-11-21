@@ -335,7 +335,9 @@ text ‹
 ›
 
 locale Eq_ReadLR_SubsetSum_Solver =
-  CL_SubsetSum_Solver +
+  CL_SubsetSum_Solver M q0 enc
+  for M :: machine and q0 :: nat
+      and enc :: "int list ⇒ int ⇒ bool list" +
   fixes lhs rhs :: "int list ⇒ int ⇒ int"
     and L_zone R_zone :: "int list ⇒ int ⇒ nat set"
   assumes equation_correct:
@@ -348,10 +350,11 @@ locale Eq_ReadLR_SubsetSum_Solver =
     "⋀as s. distinct_subset_sums as ⟹
         read0_TM as s ∩ L_zone as s ≠ {} ∧
         read0_TM as s ∩ R_zone as s ≠ {}"
+
 text ‹
   RELATION TO THE ABSTRACT LOWER-BOUND AXIOM ‹LR_Read_TM›
 
-  The locale ‹Eq_ReadLR_SubsetSum_Solver› isolates a very weak,
+  The locale ‹Eq_ReadLR_SubsetSum_Solver› isolates a concrete,
   adversary-style requirement:
 
     • SUBSET-SUM is decided via some equation
@@ -363,7 +366,7 @@ text ‹
       and at least one bit from the part encoding the “right side”
       (‹L_zone as s› and ‹R_zone as s›).
 
-  The locale ‹LR_Read_TM› is a more structured, but still abstract,
+  The locale ‹LR_Read_TM› below is a more structured, but still abstract,
   interface to the decision-tree lower bound.  Instead of talking about
   particular input zones, it assumes directly that for some canonical
   split index ‹k›, the runtime is at least
@@ -377,11 +380,13 @@ text ‹
   Intuitively, any machine satisfying the concrete “must read from L and
   R” condition of ‹Eq_ReadLR_SubsetSum_Solver› *and* aligning with the
   canonical LHS/RHS partial-sum splits should give rise to an instance of
-  ‹LR_Read_TM›.  In this theory we keep that connection at the level of
-  intuition/documentation.  All formal lower-bound proofs are phrased
-  inside ‹LR_Read_TM›, which is the Cook–Levin side of the
-  flip-complete/reader-style model.
+  ‹LR_Read_TM›.  In this theory we keep that connection as a meta-level
+  assumption (see the locales ‹All_SubsetSum_Polytime_LR_Read› and
+  ‹All_SubsetSum_Polytime_Eq_ReadLR› below).  All formal lower-bound
+  proofs are phrased inside ‹LR_Read_TM›, which is the Cook–Levin side
+  of the flip-complete/reader-style model.
 ›
+
 
 section ‹LR-read TM interface and lower bound inheritance›
 
@@ -402,7 +407,9 @@ where
                ≤ nat (ceiling (c * (real (length as)) ^ d)))"
 
 locale LR_Read_TM =
-  CL_SubsetSum_Solver +
+  CL_SubsetSum_Solver M q0 enc
+  for M :: machine and q0 :: nat
+      and enc :: "int list ⇒ int ⇒ bool list" +
   assumes lemma1_ex_TM:
     "⋀as s n. n = length as ⟹ distinct_subset_sums as ⟹
        ∃k≤n.
@@ -562,61 +569,42 @@ qed
 
 end  (* locale LR_Read_TM *)
 
+
 text ‹
-  This locale captures the **meta-assumption** that every polynomial-time
-  Cook–Levin machine that correctly decides SUBSET-SUM satisfies the
-  LR-read lower-bound axiom, in the sense of ‹LR_Read_TM›.
+  This locale captures a **meta-assumption**: whenever a Cook–Levin
+  machine correctly decides SUBSET-SUM via an equation satisfying
+  the “read one bit of L and one bit of R” requirement, *and* runs
+  in polynomial time, then it also satisfies the more structured
+  LR-read axiom of ‹LR_Read_TM›.
+
+  Under this meta-assumption we can state the final lower bound using
+  only the concrete Eq_ReadLR_SubsetSum_Solver hypothesis.
 ›
 
-locale All_SubsetSum_Polytime_LR_Read =
-  assumes all_polytime_LR:
-    "⋀M q0 enc.
-       CL_SubsetSum_Solver M q0 enc ⟹
-       polytime_CL_machine M enc ⟹
-       LR_Read_TM M q0 enc"
+locale All_SubsetSum_Polytime_Eq_ReadLR =
+  fixes M :: machine
+    and q0 :: nat
+    and enc :: "int list ⇒ int ⇒ bool list"
+    and lhs rhs :: "int list ⇒ int ⇒ int"
+    and L_zone R_zone :: "int list ⇒ int ⇒ nat set"
+  assumes all_polytime_ReadLR_LR:
+    "Eq_ReadLR_SubsetSum_Solver M q0 enc lhs rhs L_zone R_zone ⟹
+     polytime_CL_machine M enc ⟹
+     LR_Read_TM M q0 enc"
 
-context All_SubsetSum_Polytime_LR_Read
+context All_SubsetSum_Polytime_Eq_ReadLR
 begin
 
-section ‹Complexity-theoretic interpretation: SUBSET-SUM and P vs NP›
-
-text ‹
-  Conceptually, ‹All_SubsetSum_Polytime_LR_Read› says:
-
-    • if there were a polynomial-time Cook–Levin machine that solved
-      SUBSET-SUM, then it would satisfy the LR-read axiom of ‹LR_Read_TM›,
-
-    • but *inside* ‹LR_Read_TM› we have already proved that no such
-      polynomial bound can exist on the distinct-subset-sums family,
-
-    • hence no polynomial-time Cook–Levin solver for SUBSET-SUM exists.
-
-  Combined with the standard Cook–Levin NP-completeness of SUBSET-SUM,
-  and a bridge between general polynomial-time Turing machines and
-  Cook–Levin machines, this would yield that SUBSET-SUM ∉ P and thus
-  P ≠ NP.  The remaining gap is exactly the meta-assumption that any
-  polynomial-time solver satisfies the LR-read axiom.
-›
-
-theorem no_polytime_CL_subset_sum:
-  shows "¬ (∃M q0 enc.
-              CL_SubsetSum_Solver M q0 enc ∧
-              polytime_CL_machine M enc)"
-proof
-  assume "∃M q0 enc.
-            CL_SubsetSum_Solver M q0 enc ∧
-            polytime_CL_machine M enc"
-  then obtain M q0 enc
-    where solver: "CL_SubsetSum_Solver M q0 enc"
+theorem no_polytime_CL_subset_sum_ReadLR:
+  assumes solver: "Eq_ReadLR_SubsetSum_Solver M q0 enc lhs rhs L_zone R_zone"
       and poly:   "polytime_CL_machine M enc"
-    by blast
-
-  (* From the meta-assumption, this solver satisfies the LR-read lower-bound axiom. *)
-  from all_polytime_LR[OF solver poly]
-  have lr_inst: "LR_Read_TM M q0 enc" .
+  shows False
+proof -
+  from all_polytime_ReadLR_LR[OF solver poly]
+  have lr: "LR_Read_TM M q0 enc" .
 
   interpret LR: LR_Read_TM M q0 enc
-    by (rule lr_inst)
+    by (rule lr)
 
   from poly obtain c d where
     cpos: "c > 0" and
@@ -629,36 +617,17 @@ proof
      ∀as s. distinct_subset_sums as ⟶
        steps_CL M (enc as s)
          ≤ nat (ceiling (c * (real (length as)) ^ d))"
-  proof -
-    have ex_d:
-      "∃(d::nat).
-       ∀as s. distinct_subset_sums as ⟶
-         steps_CL M (enc as s)
-           ≤ nat (ceiling (c * (real (length as)) ^ d))"
-    proof (intro exI allI impI)
-      fix as :: "int list" and s :: int
-      assume "distinct_subset_sums as"
-      from bound_all show
-        "steps_CL M (enc as s)
-         ≤ nat (ceiling (c * (real (length as)) ^ d))"
-        by simp
-    qed
-    from cpos ex_d show ?thesis
-      by blast
-  qed
+    using cpos bound_all by blast
 
   from LR.no_polytime_CL_on_distinct_family
-  have no_family_poly:
+  have contradiction:
     "¬ (∃(c::real)>0. ∃(d::nat).
         ∀as s. distinct_subset_sums as ⟶
           steps_CL M (enc as s)
             ≤ nat (ceiling (c * (real (length as)) ^ d)))" .
 
-  from no_family_poly family_bound
-  show False
-    by contradiction
+  from contradiction family_bound show False
+    by blast
 qed
 
-end  (* context All_SubsetSum_Polytime_LR_Read *)
-
-end  (* theory *)
+end
