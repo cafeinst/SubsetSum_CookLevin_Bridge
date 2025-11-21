@@ -571,41 +571,49 @@ end  (* locale LR_Read_TM *)
 
 
 text ‹
-  This locale captures a **meta-assumption**: whenever a Cook–Levin
-  machine correctly decides SUBSET-SUM via an equation satisfying
-  the “read one bit of L and one bit of R” requirement, *and* runs
-  in polynomial time, then it also satisfies the more structured
-  LR-read axiom of ‹LR_Read_TM›.
+  This locale captures the **meta-assumption** that every polynomial-time
+  Cook–Levin machine that correctly decides SUBSET-SUM via an equation
+  satisfying the “must read from L and R” requirement also satisfies the
+  more structured LR-read axiom of ‹LR_Read_TM›.
 
-  Under this meta-assumption we can state the final lower bound using
-  only the concrete Eq_ReadLR_SubsetSum_Solver hypothesis.
+  Formally: whenever a machine/encoding/equation package
+    (M, q0, enc, lhs, rhs, L_zone, R_zone)
+  satisfies ‹Eq_ReadLR_SubsetSum_Solver› and runs in polynomial time,
+  then it is an instance of ‹LR_Read_TM›.
 ›
 
 locale All_SubsetSum_Polytime_Eq_ReadLR =
-  fixes M :: machine
-    and q0 :: nat
-    and enc :: "int list ⇒ int ⇒ bool list"
-    and lhs rhs :: "int list ⇒ int ⇒ int"
-    and L_zone R_zone :: "int list ⇒ int ⇒ nat set"
-  assumes all_polytime_ReadLR_LR:
-    "Eq_ReadLR_SubsetSum_Solver M q0 enc lhs rhs L_zone R_zone ⟹
-     polytime_CL_machine M enc ⟹
-     LR_Read_TM M q0 enc"
+  assumes all_eq_to_lr:
+    "⋀M q0 enc lhs rhs L_zone R_zone.
+       Eq_ReadLR_SubsetSum_Solver M q0 enc lhs rhs L_zone R_zone ⟹
+       polytime_CL_machine M enc ⟹
+       LR_Read_TM M q0 enc"
 
 context All_SubsetSum_Polytime_Eq_ReadLR
 begin
 
-theorem no_polytime_CL_subset_sum_ReadLR:
-  assumes solver: "Eq_ReadLR_SubsetSum_Solver M q0 enc lhs rhs L_zone R_zone"
+theorem no_polytime_eq_readlr_solver:
+  shows "¬ (∃M q0 enc lhs rhs L_zone R_zone.
+              Eq_ReadLR_SubsetSum_Solver M q0 enc lhs rhs L_zone R_zone ∧
+              polytime_CL_machine M enc)"
+proof
+  assume ex:
+    "∃M q0 enc lhs rhs L_zone R_zone.
+        Eq_ReadLR_SubsetSum_Solver M q0 enc lhs rhs L_zone R_zone ∧
+        polytime_CL_machine M enc"
+  then obtain M q0 enc lhs rhs L_zone R_zone
+    where solver: "Eq_ReadLR_SubsetSum_Solver M q0 enc lhs rhs L_zone R_zone"
       and poly:   "polytime_CL_machine M enc"
-  shows False
-proof -
-  from all_polytime_ReadLR_LR[OF solver poly]
+    by blast
+
+  (* Meta-assumption: Eq-ReadLR + polytime ⇒ LR_Read_TM *)
+  from all_eq_to_lr[OF solver poly]
   have lr: "LR_Read_TM M q0 enc" .
 
   interpret LR: LR_Read_TM M q0 enc
     by (rule lr)
 
+  (* From polytime_CL_machine, get a global polynomial bound *)
   from poly obtain c d where
     cpos: "c > 0" and
     bound_all: "∀as s. steps_CL M (enc as s)
@@ -619,15 +627,18 @@ proof -
          ≤ nat (ceiling (c * (real (length as)) ^ d))"
     using cpos bound_all by blast
 
+  (* But inside LR_Read_TM we know this is impossible on the distinct family *)
   from LR.no_polytime_CL_on_distinct_family
-  have contradiction:
+  have no_family_poly:
     "¬ (∃(c::real)>0. ∃(d::nat).
         ∀as s. distinct_subset_sums as ⟶
           steps_CL M (enc as s)
             ≤ nat (ceiling (c * (real (length as)) ^ d)))" .
 
-  from contradiction family_bound show False
+  from no_family_poly family_bound show False
     by blast
 qed
 
+end  (* context All_SubsetSum_Polytime_Eq_ReadLR *)
 end
+
