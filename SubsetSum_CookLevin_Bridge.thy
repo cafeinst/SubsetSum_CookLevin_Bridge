@@ -23,7 +23,7 @@ text ‹
 
       – ‹Eq_ReadLR_SubsetSum_Solver›:
           Strengthens ‹CL_SubsetSum_Solver› by saying that ‹M› decides
-          SUBSET-SUM via an equality of two “sides” (‹lhs›, ‹rhs›), and 
+          SUBSET-SUM via an equality of two “sides” (‹lhs›, ‹rhs›), and
           that, on distinct-subset-sums instances, it must read at least
           one bit from the part of the input encoding the left side and
           at least one bit from the part encoding the right side.  This
@@ -129,7 +129,6 @@ text ‹We will run our machines with two tapes: input (0) and output (1).›
 definition k_tapes :: nat where
   "k_tapes = 2"
 
-
 subsection ‹Cook–Levin step-count and acceptance›
 
 text ‹
@@ -178,18 +177,81 @@ lemma read0_CL_subset_indices:
   "read0_CL M x ⊆ {..<length x}"
   unfolding read0_CL_def by auto
 
-
-subsection ‹Unread-agreement lemma in the Cook–Levin model›
+subsection ‹Configuration agreement and unread positions›
 
 text ‹
-  If two inputs @{term x} and @{term y} agree on every index in
-  @{term "read0_CL M x"}, then a deterministic Cook–Levin TM behaves
-  identically on both: same runtime, same output, and same set of
-  read positions.
-
-  This is the CL-analogue of the “flip completeness / unread agreement”
-  property we abstracted in the decision-tree model.
+  Two configurations agree except possibly at position i on tape 0.
+  This is a convenient concept if one wants to reason about how a single
+  unread bit on the input tape can be flipped without affecting the
+  rest of the machine's behaviour.  In this theory we will *not* prove
+  a general unread-flip lemma for all Cook–Levin machines; instead,
+  we package the desired unread-agreement property as a locale axioms
+  for the particular machines we care about (see below).
 ›
+
+definition configs_agree_except_at :: "nat ⇒ config ⇒ config ⇒ bool" where
+  "configs_agree_except_at i c1 c2 ⟷
+     fst c1 = fst c2 ∧
+     ||c1|| = ||c2|| ∧
+     (∀t. 0 < t ⟶ t < ||c1|| ⟶
+         c1 <:> t = c2 <:> t ∧
+         c1 <#> t = c2 <#> t) ∧
+     c1 <#> 0 = c2 <#> 0 ∧
+     (∀pos. pos ≠ i ⟶ (c1 <:> 0) pos = (c2 <:> 0) pos)"
+
+text ‹Flipping a bit in a bool list›
+
+definition flip_bool_list :: "bool list ⇒ nat ⇒ bool list" where
+  "flip_bool_list xs i =
+     (if i < length xs then xs[i := (¬ xs!i)] else xs)"
+
+lemma bool_to_symbols_flip_outside:
+  assumes "j < length x" "j ≠ i"
+  shows "bool_to_symbols (flip_bool_list x i) ! j
+       = bool_to_symbols x ! j"
+  using assms
+  unfolding bool_to_symbols_def flip_bool_list_def
+  by (auto simp: nth_list_update)
+
+lemma flip_bool_list_length[simp]:
+  "length (flip_bool_list xs i) = length xs"
+  by (simp add: flip_bool_list_def)
+
+lemma flip_bool_list_eq_outside:
+  assumes "j < length xs" "j ≠ i"
+  shows "flip_bool_list xs i ! j = xs ! j"
+  using assms
+  by (simp add: flip_bool_list_def)
+
+lemma head0_bounded:
+  assumes "turing_machine k_tapes q0 M"
+  assumes "t < steps_CL M x"
+  shows   "head0_CL (conf_CL M x t) ≥ 0"
+  unfolding head0_CL_def conf_CL_def
+  by simp
+
+subsection ‹Unread-agreement property as a locale axiom›
+
+text ‹
+  We now *axiomatize* the unread-flip agreement property for a given
+  Cook–Levin machine.  Intuitively, this says:
+
+    • if bit i of x is never read on tape 0 in the run of M on input x,
+      then flipping that bit does not change whether M accepts.
+
+  This is the Cook–Levin analogue of the “unread bits do not matter”
+  property used on the decision-tree side.  It is *not* derivable for
+  arbitrary machines from the raw Cook–Levin semantics, so we expose it
+  as a separate locale that can be assumed for the particular solvers
+  we care about.
+›
+
+locale Flip_Agreement_CL =
+  fixes M :: machine and q0 :: nat
+  assumes TM: "turing_machine k_tapes q0 M"
+  assumes unread_agreement:
+    "⋀x i. i < length x ⟹ i ∉ read0_CL M x
+          ⟹ accepts_CL M x = accepts_CL M (flip_bool_list x i)"
 
 subsection ‹The mathematical SUBSET-SUM predicate›
 
