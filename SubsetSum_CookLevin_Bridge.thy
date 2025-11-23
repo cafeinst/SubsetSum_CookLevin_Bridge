@@ -569,6 +569,49 @@ qed
 
 end  (* locale LR_Read_TM *)
 
+subsection ‹XOR-based read axiom (meta-assumption)›
+
+text ‹
+  This locale captures a **meta-assumption**: whenever a Cook–Levin
+  machine correctly solves an XOR-style problem
+  @{term "A as s XOR B as s"} on “hard” instances, and runs in
+  polynomial time, then it must read at least one bit from the
+  region encoding A and at least one bit from the region encoding B.
+›
+
+locale XOR_Solver_CL =
+  fixes M :: machine
+    and q0 :: nat
+    and enc :: "int list ⇒ int ⇒ bool list"
+    and A B :: "int list ⇒ int ⇒ bool"
+    and A_zone B_zone :: "int list ⇒ int ⇒ nat set"
+  assumes turing: "turing_machine k_tapes q0 M"
+  assumes xor_correct:
+    "⋀as s. accepts_CL M (enc as s) ⟷ (A as s ≠ B as s)"
+  assumes zones_wf:
+    "⋀as s. A_zone as s ⊆ {..< length (enc as s)}"
+    "⋀as s. B_zone as s ⊆ {..< length (enc as s)}"
+    "⋀as s. A_zone as s ∩ B_zone as s = {}"
+
+text ‹
+  The following locale packages a **meta-assumption** about all
+  polynomial-time Cook–Levin machines that solve such XOR problems.
+
+  Intuitively: for any such XOR solver M, and any “hard” input pair (as, s),
+  the machine must read at least one bit from the part of the input encoding
+  A as and at least one bit from the part encoding B s (the zones
+  @{term "A_zone as s"} and @{term "B_zone as s"}).
+›
+
+locale All_XOR_Polytime_ReadBoth =
+  fixes hard_pair :: "int list ⇒ int ⇒ bool"
+  assumes xor_read_axiom:
+    "⋀M q0 enc A B A_zone B_zone as s.
+       hard_pair as s ⟹
+       XOR_Solver_CL M q0 enc A B A_zone B_zone ⟹
+       polytime_CL_machine M enc ⟹
+       read0_CL M (enc as s) ∩ A_zone as s ≠ {} ∧
+       read0_CL M (enc as s) ∩ B_zone as s ≠ {}"
 
 text ‹
   This locale captures the **meta-assumption** that every polynomial-time
@@ -641,4 +684,3 @@ qed
 
 end  (* context All_SubsetSum_Polytime_Eq_ReadLR *)
 end
-
