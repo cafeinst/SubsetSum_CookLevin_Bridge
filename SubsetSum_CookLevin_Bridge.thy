@@ -627,6 +627,10 @@ locale Eq_ReadLR_SubsetSum_Solver =
     "⋀as s. L_zone as s ⊆ {..< length (enc as s)}"
     "⋀as s. R_zone as s ⊆ {..< length (enc as s)}"
     "⋀as s. L_zone as s ∩ R_zone as s = {}"
+  assumes must_read_LR:
+    "⋀as s. distinct_subset_sums as ⟹
+       read0_TM as s ∩ L_zone as s ≠ {} ∧
+       read0_TM as s ∩ R_zone as s ≠ {}"
 
 text ‹
   RELATION TO THE ABSTRACT LOWER-BOUND AXIOM ‹LR_Read_TM›
