@@ -727,10 +727,6 @@ proof
       and poly:   "polytime_CL_machine M enc"
     by blast
 
-  text ‹By the bridge assumption, such a solver must satisfy the
-    LR-read interface, and therefore inherits the √(2^n) lower bound
-    and the “no polynomial bound on the distinct family” result.›
-
   from eq_to_LR_Read_TM[OF solver poly]
   have lr: "LR_Read_TM M q0 enc" .
 
@@ -761,72 +757,56 @@ proof
     by blast
 qed
 
-end
+end  (* context All_SubsetSum_from_XOR *)
 
-locale P_neq_NP_from_XOR =
-  All_SubsetSum_from_XOR
-+ fixes in_P in_NP :: "bool list set ⇒ bool"
-     and SUBSETSUM_lang :: "bool list set"
-     and enc0 :: "int list ⇒ int ⇒ bool list"
+definition P_eq_NP :: bool where
+  "P_eq_NP ⟷ (∀L::language. (L ∈ 𝒫) = (L ∈ 𝒩𝒫))"
+
+(* Concrete SUBSET-SUM language and NP-ness are assumed here *)
+locale P_neq_NP_from_XOR_CL =
+  All_SubsetSum_from_XOR +                     (* <-- extend here *)
+  fixes enc0 :: "int list ⇒ int ⇒ string"
   assumes SUBSETSUM_lang_def:
     "SUBSETSUM_lang =
        {x. ∃as s. x = enc0 as s ∧ subset_sum_true as s}"
   assumes SUBSETSUM_in_NP:
-    "in_NP SUBSETSUM_lang"
+    "SUBSETSUM_lang ∈ 𝒩𝒫"
   assumes P_impl_eq_readlr_CL:
-    "in_P SUBSETSUM_lang ⟹
+    "SUBSETSUM_lang ∈ 𝒫 ⟹
        ∃M q0 lhs rhs L_zone R_zone.
          Eq_ReadLR_SubsetSum_Solver M q0 enc0 lhs rhs L_zone R_zone ∧
          polytime_CL_machine M enc0"
+
+context P_neq_NP_from_XOR_CL
 begin
-
-text ‹Abstract proposition “P = NP” in terms of in_P / in_NP.›
-
-definition P_eq_NP :: bool where
-  "P_eq_NP ⟷ (∀L. in_P L = in_NP L)"
 
 theorem P_neq_NP:
   shows "¬ P_eq_NP"
 proof
   assume eq: P_eq_NP
 
-  text ‹From P = NP, any NP language is also in P, in particular SUBSETSUM_lang.›
-  have inP_SUBSETSUM: "in_P SUBSETSUM_lang"
+  (* From P = NP and SUBSETSUM_lang ∈ NP, we get SUBSETSUM_lang ∈ P. *)
+  have inP_SUBSETSUM: "SUBSETSUM_lang ∈ 𝒫"
     using eq SUBSETSUM_in_NP
-    unfolding P_eq_NP_def
-    by metis
+    unfolding P_eq_NP_def by metis
 
-  text ‹By the modelling assumption, SUBSETSUM_lang ∈ P yields
-    a polynomial-time equation-based Cook–Levin solver.›
-  from P_impl_eq_readlr_CL[OF inP_SUBSETSUM]
+  (* By the modelling assumption, this yields an equation-based solver. *)
   obtain M q0 lhs rhs L_zone R_zone where
     solver: "Eq_ReadLR_SubsetSum_Solver M q0 enc0 lhs rhs L_zone R_zone" and
     poly:   "polytime_CL_machine M enc0"
-    by blast
+    using P_impl_eq_readlr_CL[OF inP_SUBSETSUM] by blast
 
-  text ‹But inside ‹All_SubsetSum_from_XOR› we already proved that
-    no such solver can exist.›
-  from no_polytime_eq_readlr_solver
-  have "False"
+  (* Package this particular solver as a witness for the existential
+     that no_polytime_eq_readlr_solver says cannot exist. *)
+  have ex_solver:
+    "∃M q0 enc lhs rhs L_zone R_zone.
+       Eq_ReadLR_SubsetSum_Solver M q0 enc lhs rhs L_zone R_zone ∧
+       polytime_CL_machine M enc"
     using solver poly by blast
 
-  thus False .
+  (* But All_SubsetSum_from_XOR tells us: no such solver exists. *)
+  from no_polytime_eq_readlr_solver ex_solver
+  show False by blast
 qed
 
-end  (* context P_neq_NP_from_XOR *)
-
-text ‹
-  Informal “big theorem” summary:
-
-  If every polynomial-time Cook–Levin machine that:
-    (1) solves SUBSET-SUM via some deciding equation
-        lhs as s = rhs as s, and
-    (2) satisfies the XOR-based “must read A and B” meta-axiom
-        on the distinct-subset-sums family,
-  also gives rise to an LR-read instance,
-
-  then there is no polynomial-time Cook–Levin machine that solves
-  SUBSET-SUM of this equation-based type.
-›
-
-end  (* theory *)
+end  (* context P_neq_NP_from_XOR_CL *)
