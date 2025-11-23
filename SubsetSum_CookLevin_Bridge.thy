@@ -313,6 +313,104 @@ next
     using sum_eq by blast
 qed
 
+subsection ‹SUBSET-SUM is in NP (via an abstract verifier)›
+
+text ‹
+  We now define an abstract verifier locale that matches the NP definition
+  in {theory NP}.  It assumes that we have:
+
+    • an instance encoding {term enc0 :: "int list ⇒ int ⇒ string"},
+    • a certificate encoding {term enc_cert :: "int list ⇒ int ⇒ int list ⇒ string"},
+    • a Turing machine {term V} computing a verifier function {term fverify},
+    • a polynomial bound {term p} on the certificate length as a function of
+      the instance length.
+
+  The correctness condition ties everything back to @{term ss_cert_ok} and
+  hence to @{term subset_sum_true}.
+›
+
+locale SS_Verifier_NP =
+  fixes k G V p T fverify enc0 enc_cert
+  assumes V_tm:
+    "turing_machine k G V"
+  assumes p_poly:
+    "polynomial p"
+  assumes T_poly:
+    "big_oh_poly T"
+  assumes V_time:
+    "computes_in_time k V fverify T"
+  assumes V_outlen:
+    "⋀y. length (fverify y) = 1"
+  assumes V_complete:
+    "⋀as s. subset_sum_true as s ⟹
+       ∃xs.
+         ss_cert_ok as s xs ∧
+         length (enc_cert as s xs) = p (length (enc0 as s)) ∧
+         fverify ⟨enc0 as s, enc_cert as s xs⟩ = [𝕀]"
+  assumes V_sound:
+    "⋀as s u.
+       fverify ⟨enc0 as s, u⟩ = [𝕀] ⟹
+       length u = p (length (enc0 as s)) ⟹
+       ∃xs. ss_cert_ok as s xs ∧ u = enc_cert as s xs"
+  assumes V_wf:
+    "⋀x u. fverify ⟨x, u⟩ = [𝕀] ⟹ ∃as s. x = enc0 as s"
+
+
+subsection ‹Encoding of instance–certificate pairs›
+
+text ‹
+  For the NP view, we want a single input bitstring that encodes both
+  the instance (as,s) and a certificate xs.  We keep the instance
+  encoding enc0 abstract, and assume a separate certificate encoding
+  enc_cert.  The combined encoding just concatenates them with a fixed
+  separator.
+›
+
+definition sep :: "bool list" where
+  "sep = [True, False, True]"  (* any fixed non-empty pattern *)
+
+definition enc_pair ::
+  "(int list ⇒ int ⇒ bool list) ⇒
+   (int list ⇒ int ⇒ int list ⇒ bool list) ⇒
+   int list ⇒ int ⇒ int list ⇒ bool list" where
+  "enc_pair enc0 enc_cert as s xs =
+     enc0 as s @ sep @ enc_cert as s xs"
+
+subsection ‹A Cook–Levin verifier for SUBSET-SUM›
+
+locale SS_Verifier_CL =
+  fixes V        :: machine
+    and q0       :: nat
+    and enc0     :: "int list ⇒ int ⇒ bool list"
+    and enc_cert :: "int list ⇒ int ⇒ int list ⇒ bool list"
+  assumes V_tm:
+    "turing_machine k_tapes q0 V"
+  assumes V_polytime:
+    "∃(c::real)>0. ∃(d::nat).
+       ∀as s xs.
+         length xs = length as ⟶
+         steps_CL V (enc_pair enc0 enc_cert as s xs)
+           ≤ nat (ceiling (c * (real (length (enc0 as s)) ^ d)))"
+  assumes V_correct:
+    "⋀as s xs.
+       length xs = length as ⟶
+       accepts_CL V (enc_pair enc0 enc_cert as s xs)
+         ⟷ ss_cert_ok as s xs"
+
+text ‹
+  Intuitively:
+
+   • V is a k_tape Cook–Levin machine.
+
+   • On input enc_pair enc0 enc_cert as s xs, if length xs = length as,
+     V accepts exactly when xs is a correct subset-sum witness
+     (ss_cert_ok as s xs).
+
+   • The running time of V is bounded by a polynomial in the instance
+     size |enc0 as s|, uniformly over all certificates xs of matching
+     length.
+›
+
 section ‹SUBSET-SUM as a language›
 
 text ‹
@@ -324,6 +422,129 @@ text ‹
 definition SUBSETSUM_lang :: "(int list ⇒ int ⇒ string) ⇒ language" where
   "SUBSETSUM_lang enc0 ≡
      {x. ∃as s. x = enc0 as s ∧ subset_sum_true as s}"
+
+subsection ‹SUBSET-SUM is in NP (relative to enc0)›
+
+lemma SUBSETSUM_in_NP_from_verifier:
+  fixes k G V p T fverify enc0 enc_cert
+  assumes verif: "SS_Verifier_NP k G V p T fverify enc0 enc_cert"
+  shows "SUBSETSUM_lang enc0 ∈ 𝒩𝒫"
+proof -
+  interpret V: SS_Verifier_NP k G V p T fverify enc0 enc_cert
+    using verif .
+
+  text ‹Use the alternative NP characterization @{thm NP_output_len_1}.›
+
+  have witness:
+    "∃k G M p T fver.
+       turing_machine k G M ∧
+       polynomial p ∧
+       big_oh_poly T ∧
+       computes_in_time k M fver T ∧
+       (∀y. length (fver y) = 1) ∧
+       (∀x. x ∈ SUBSETSUM_lang enc0 ⟷
+              (∃u. length u = p (length x) ∧ fver ⟨x, u⟩ = [𝕀]))"
+  proof (intro exI conjI)
+    (* choose k,G,M,p,T,fver as the ones from the verifier *)
+    show "turing_machine k G V"
+      by (rule V.V_tm)
+    show "polynomial p"
+      by (rule V.p_poly)
+    show "big_oh_poly T"
+      by (rule V.T_poly)
+    show "computes_in_time k V fverify T"
+      by (rule V.V_time)
+    show "∀y. length (fverify y) = 1"
+      using V.V_outlen by simp
+
+    show "∀x. x ∈ SUBSETSUM_lang enc0 ⟷
+              (∃u. length u = p (length x) ∧ fverify ⟨x, u⟩ = [𝕀])"
+    proof
+      fix x :: string
+      show "x ∈ SUBSETSUM_lang enc0 ⟷
+              (∃u. length u = p (length x) ∧ fverify ⟨x, u⟩ = [𝕀])"
+      proof
+        (* (⇒) completeness direction *)
+        assume "x ∈ SUBSETSUM_lang enc0"
+        then obtain as s where
+          x_def: "x = enc0 as s" and
+          sat:   "subset_sum_true as s"
+          unfolding SUBSETSUM_lang_def by blast
+
+        from V.V_complete[OF sat] obtain xs where
+          xs_ok: "ss_cert_ok as s xs" and
+          len_u: "length (enc_cert as s xs) = p (length (enc0 as s))" and
+          acc:   "fverify ⟨enc0 as s, enc_cert as s xs⟩ = [𝕀]"
+          by blast
+
+        have "∃u. length u = p (length x) ∧ fverify ⟨x, u⟩ = [𝕀]"
+          using x_def len_u acc by blast
+        thus "∃u. length u = p (length x) ∧ fverify ⟨x, u⟩ = [𝕀]" .
+      next
+        (* (⇐) soundness direction *)
+        assume RHS: "∃u. length u = p (length x) ∧ fverify ⟨x, u⟩ = [𝕀]"
+        then obtain u where
+          len_u: "length u = p (length x)" and
+          acc:   "fverify ⟨x, u⟩ = [𝕀]"
+          by blast
+
+        (* Use the WELL-FORMEDNESS axiom: accepting ⇒ x is some enc0 as s *)
+        from V.V_wf[OF acc] obtain as s where
+          x_def: "x = enc0 as s"
+          by blast
+
+        (* Rewrite premises into the shape V_sound expects *)
+        from acc x_def have acc_enc:
+          "fverify ⟨enc0 as s, u⟩ = [𝕀]"
+          by simp
+        from len_u x_def have len_u_enc:
+          "length u = p (length (enc0 as s))"
+          by simp
+
+        (* Important: argument order matches V_sound: acc_enc THEN len_u_enc *)
+        from V.V_sound[OF acc_enc len_u_enc]
+        obtain xs where xs_ok: "ss_cert_ok as s xs" and u_enc: "u = enc_cert as s xs"
+          by blast
+
+        from xs_ok have "subset_sum_true as s"
+          using subset_sum_true_iff_cert by blast
+        hence "x ∈ SUBSETSUM_lang enc0"
+          unfolding SUBSETSUM_lang_def using x_def by blast
+        thus "x ∈ SUBSETSUM_lang enc0" .
+      qed
+    qed
+  qed
+
+  (* We now package the verifier data into the exact shape
+     required by NP_output_len_1. *)
+  from witness
+  obtain k G M p T fver where
+    tm:      "turing_machine k G M" and
+    poly_p:  "polynomial p" and
+    T_poly:  "big_oh_poly T" and
+    time:    "computes_in_time k M fver T" and
+    outlen:  "∀y. length (fver y) = 1" and
+    corr:    "∀x. x ∈ SUBSETSUM_lang enc0 ⟷
+                   (∃u. length u = p (length x) ∧ fver ⟨x, u⟩ = [𝕀])"
+    by blast
+
+  have witness':
+    "∃k G M.
+       turing_machine k G M ∧
+       (∃p. polynomial p ∧
+        (∃T. big_oh_poly T ∧
+         (∃fver.
+            computes_in_time k M fver T ∧
+            (∀y. length (fver y) = 1) ∧
+            (∀x. x ∈ SUBSETSUM_lang enc0 ⟷
+                   (∃u. length u = p (length x) ∧ fver ⟨x, u⟩ = [𝕀])))))"
+    using tm poly_p T_poly time outlen corr by blast
+
+  show "SUBSETSUM_lang enc0 ∈ 𝒩𝒫"
+    unfolding NP_output_len_1
+    using witness' by blast
+qed
+
 
 subsection ‹A Cook–Levin machine that solves SUBSET-SUM›
 
@@ -829,9 +1050,9 @@ locale P_neq_NP_from_XOR_CL =
     "SUBSETSUM_lang enc0 ∈ 𝒩𝒫"
   assumes P_impl_eq_readlr_CL:
     "SUBSETSUM_lang enc0 ∈ 𝒫 ⟹
-       ∃M q0 lhs rhs L_zone R_zone.
-         Eq_ReadLR_SubsetSum_Solver M q0 enc0 lhs rhs L_zone R_zone ∧
-         polytime_CL_machine M enc0"
+       ∃M q0 enc lhs rhs L_zone R_zone.
+         Eq_ReadLR_SubsetSum_Solver M q0 enc lhs rhs L_zone R_zone ∧
+         polytime_CL_machine M enc"
 
 context P_neq_NP_from_XOR_CL
 begin
@@ -846,13 +1067,13 @@ proof
     using eq SUBSETSUM_in_NP
     unfolding P_eq_NP_def by metis
 
-  (* By the modelling assumption, this yields an equation-based solver. *)
-  obtain M q0 lhs rhs L_zone R_zone where
-    solver: "Eq_ReadLR_SubsetSum_Solver M q0 enc0 lhs rhs L_zone R_zone" and
-    poly:   "polytime_CL_machine M enc0"
+  (* By the modelling assumption, this yields some equation-based CL solver. *)
+  obtain M q0 enc lhs rhs L_zone R_zone where
+    solver: "Eq_ReadLR_SubsetSum_Solver M q0 enc lhs rhs L_zone R_zone" and
+    poly:   "polytime_CL_machine M enc"
     using P_impl_eq_readlr_CL[OF inP_SUBSETSUM] by blast
 
-  (* Package this particular solver as a witness for the existential
+  (* Package this solver as a witness for the existential
      that no_polytime_eq_readlr_solver says cannot exist. *)
   have ex_solver:
     "∃M q0 enc lhs rhs L_zone R_zone.
@@ -866,4 +1087,4 @@ proof
 qed
 
 end  (* context P_neq_NP_from_XOR_CL *)
-end  (* theory *)
+end
