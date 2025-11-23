@@ -265,6 +265,66 @@ definition subset_sum_true :: "int list ⇒ int ⇒ bool" where
      (∃xs ∈ bitvec (length as).
         (∑ i<length as. as ! i * xs ! i) = s)"
 
+subsection ‹Certificate-based view of SUBSET-SUM›
+
+text ‹
+  A natural NP-style certificate for SUBSET-SUM is a 0/1-vector @{term xs}
+  of the same length as @{term as}, indicating which elements are chosen.
+  The verifier checks:
+    • length xs = length as
+    • each entry is 0 or 1
+    • the weighted sum equals s.
+›
+
+definition ss_cert_ok :: "int list ⇒ int ⇒ int list ⇒ bool" where
+  "ss_cert_ok as s xs ⟷
+     length xs = length as ∧
+     set xs ⊆ {0,1} ∧
+     (∑ i<length as. as ! i * xs ! i) = s"
+
+lemma subset_sum_true_iff_cert:
+  "subset_sum_true as s ⟷ (∃xs. ss_cert_ok as s xs)"
+proof
+  assume "subset_sum_true as s"
+  then obtain xs where
+    xs_bitvec: "xs ∈ bitvec (length as)" and
+    sum_eq:     "(∑ i<length as. as ! i * xs ! i) = s"
+    unfolding subset_sum_true_def by blast
+  hence len: "length xs = length as"
+    and vals: "set xs ⊆ {0,1}"
+    unfolding bitvec_def by auto
+  hence "ss_cert_ok as s xs"
+    unfolding ss_cert_ok_def using sum_eq by simp
+  thus "∃xs. ss_cert_ok as s xs"
+    by blast
+next
+  assume "∃xs. ss_cert_ok as s xs"
+  then obtain xs where
+    ok: "ss_cert_ok as s xs"
+    by blast
+  from ok have len: "length xs = length as"
+    and vals: "set xs ⊆ {0,1}"
+    and sum_eq: "(∑ i<length as. as ! i * xs ! i) = s"
+    unfolding ss_cert_ok_def by auto
+  hence "xs ∈ bitvec (length as)"
+    unfolding bitvec_def by auto
+  thus "subset_sum_true as s"
+    unfolding subset_sum_true_def
+    using sum_eq by blast
+qed
+
+section ‹SUBSET-SUM as a language›
+
+text ‹
+  Given an instance encoding function @{term enc0} which maps a pair
+  (as,s) to a bitstring, we define the SUBSET-SUM language as the set
+  of all strings that encode a true SUBSET-SUM instance.
+›
+
+definition SUBSETSUM_lang :: "(int list ⇒ int ⇒ string) ⇒ language" where
+  "SUBSETSUM_lang enc0 ≡
+     {x. ∃as s. x = enc0 as s ∧ subset_sum_true as s}"
+
 subsection ‹A Cook–Levin machine that solves SUBSET-SUM›
 
 text ‹
@@ -762,17 +822,13 @@ end  (* context All_SubsetSum_from_XOR *)
 definition P_eq_NP :: bool where
   "P_eq_NP ⟷ (∀L::language. (L ∈ 𝒫) = (L ∈ 𝒩𝒫))"
 
-(* Concrete SUBSET-SUM language and NP-ness are assumed here *)
 locale P_neq_NP_from_XOR_CL =
-  All_SubsetSum_from_XOR +                     (* <-- extend here *)
+  All_SubsetSum_from_XOR +
   fixes enc0 :: "int list ⇒ int ⇒ string"
-  assumes SUBSETSUM_lang_def:
-    "SUBSETSUM_lang =
-       {x. ∃as s. x = enc0 as s ∧ subset_sum_true as s}"
   assumes SUBSETSUM_in_NP:
-    "SUBSETSUM_lang ∈ 𝒩𝒫"
+    "SUBSETSUM_lang enc0 ∈ 𝒩𝒫"
   assumes P_impl_eq_readlr_CL:
-    "SUBSETSUM_lang ∈ 𝒫 ⟹
+    "SUBSETSUM_lang enc0 ∈ 𝒫 ⟹
        ∃M q0 lhs rhs L_zone R_zone.
          Eq_ReadLR_SubsetSum_Solver M q0 enc0 lhs rhs L_zone R_zone ∧
          polytime_CL_machine M enc0"
@@ -785,8 +841,8 @@ theorem P_neq_NP:
 proof
   assume eq: P_eq_NP
 
-  (* From P = NP and SUBSETSUM_lang ∈ NP, we get SUBSETSUM_lang ∈ P. *)
-  have inP_SUBSETSUM: "SUBSETSUM_lang ∈ 𝒫"
+  (* From P = NP and SUBSETSUM_lang enc0 ∈ NP, we get SUBSETSUM_lang enc0 ∈ P. *)
+  have inP_SUBSETSUM: "SUBSETSUM_lang enc0 ∈ 𝒫"
     using eq SUBSETSUM_in_NP
     unfolding P_eq_NP_def by metis
 
@@ -810,3 +866,4 @@ proof
 qed
 
 end  (* context P_neq_NP_from_XOR_CL *)
+end  (* theory *)
