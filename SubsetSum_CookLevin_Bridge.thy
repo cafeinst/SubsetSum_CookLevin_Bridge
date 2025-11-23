@@ -694,20 +694,6 @@ locale LR_Read_TM =
          ≤ steps_TM as s"
 begin
 
-text ‹
-  The assumption ‹lemma1_ex_TM› is the formal version of:
-
-    “On any hard (distinct-subset-sums) instance of length n,
-     the way we canonically express the instance as an equality
-     l = r using the splits e_k (or an injectively equivalent
-     equation f(l) = f(r)) forces the machine to effectively
-     distinguish all values on the left and right.”
-
-  This corresponds to the informal requirement that the TM must
-  “examine” at least one bit from the left-hand value and one
-  bit from the right-hand value for each candidate equality.
-›
-
 interpretation Reader: SubsetSum_Lemma1 steps_TM
 proof
   show "⋀as s n. n = length as ⟹ distinct_subset_sums as ⟹
@@ -717,16 +703,12 @@ proof
     by (rule lemma1_ex_TM)
 qed
 
-subsection ‹Inherited Ω(√(2^n)) lower bound for this TM›
-
 theorem subset_sum_sqrt_lower_bound_TM:
   fixes as :: "int list" and s :: int and n :: nat
   assumes n_def: "n = length as" and distinct: "distinct_subset_sums as"
   shows "2 * sqrt ((2::real) ^ n) ≤ real (steps_TM as s)"
   using Reader.subset_sum_sqrt_lower_bound[OF n_def distinct]
   by simp
-
-text ‹Unfolding steps_TM, we obtain the statement directly for steps_CL.›
 
 corollary subset_sum_sqrt_lower_bound_CL:
   fixes as :: "int list" and s :: int and n :: nat
@@ -742,8 +724,6 @@ proof -
   from lb this show ?thesis
     by simp
 qed
-
-subsection ‹Inherited “no polynomial-time” corollary on the distinct family›
 
 theorem no_polytime_TM_on_distinct_family:
   shows "¬ (∃(c::real)>0. ∃(d::nat).
@@ -846,245 +826,4 @@ qed
 
 end  (* locale LR_Read_TM *)
 
-subsection ‹XOR-based read axiom (meta-assumption)›
-
-text ‹
-  This locale captures a **meta-assumption**: whenever a Cook–Levin
-  machine correctly solves an XOR-style problem
-  @{term "A as s XOR B as s"} on “hard” instances, and runs in
-  polynomial time, then it must read at least one bit from the
-  region encoding A and at least one bit from the region encoding B.
-›
-
-locale XOR_Solver_CL =
-  fixes M :: machine
-    and q0 :: nat
-    and enc :: "int list ⇒ int ⇒ bool list"
-    and A B :: "int list ⇒ int ⇒ bool"
-    and A_zone B_zone :: "int list ⇒ int ⇒ nat set"
-  assumes turing: "turing_machine k_tapes q0 M"
-  assumes xor_correct:
-    "⋀as s. accepts_CL M (enc as s) ⟷ (A as s ≠ B as s)"
-  assumes zones_wf:
-    "⋀as s. A_zone as s ⊆ {..< length (enc as s)}"
-    "⋀as s. B_zone as s ⊆ {..< length (enc as s)}"
-    "⋀as s. A_zone as s ∩ B_zone as s = {}"
-
-text ‹
-  The following locale packages a **meta-assumption** about all
-  polynomial-time Cook–Levin machines that solve such XOR problems.
-
-  Intuitively: for any such XOR solver M, and any “hard” input pair (as, s),
-  the machine must read at least one bit from the part of the input encoding
-  A as and at least one bit from the part encoding B as (the zones
-  @{term "A_zone as s"} and @{term "B_zone as s"}).
-›
-
-locale All_XOR_Polytime_ReadBoth =
-  fixes hard_pair :: "int list ⇒ int ⇒ bool"
-  assumes xor_read_axiom:
-    "⋀M q0 enc A B A_zone B_zone as s.
-       hard_pair as s ⟹
-       XOR_Solver_CL M q0 enc A B A_zone B_zone ⟹
-       polytime_CL_machine M enc ⟹
-       read0_CL M (enc as s) ∩ A_zone as s ≠ {} ∧
-       read0_CL M (enc as s) ∩ B_zone as s ≠ {}"
-
-subsection ‹XOR-based read axiom specialised to the distinct family›
-
-text ‹
-  We now specialise the abstract XOR meta-axiom to the “hard”
-  subset-sum family given by distinct subset sums.
-›
-
-definition hard_pair_distinct :: "int list ⇒ int ⇒ bool" where
-  "hard_pair_distinct as s ⟷ distinct_subset_sums as"
-
-locale All_XOR_Polytime_ReadBoth_distinct =
-  All_XOR_Polytime_ReadBoth hard_pair_distinct
-
-context All_XOR_Polytime_ReadBoth_distinct
-begin
-
-lemma must_read_LR_from_XOR:
-  fixes M :: machine and q0 :: nat
-    and enc :: "int list ⇒ int ⇒ bool list"
-    and lhs rhs :: "int list ⇒ int ⇒ int"
-    and L_zone R_zone :: "int list ⇒ int ⇒ nat set"
-  assumes solver: "Eq_ReadLR_SubsetSum_Solver M q0 enc lhs rhs L_zone R_zone"
-      and poly:   "polytime_CL_machine M enc"
-  shows "⋀as s. distinct_subset_sums as ⟹
-           read0_CL M (enc as s) ∩ L_zone as s ≠ {} ∧
-           read0_CL M (enc as s) ∩ R_zone as s ≠ {}"
-proof -
-  interpret E: Eq_ReadLR_SubsetSum_Solver M q0 enc lhs rhs L_zone R_zone
-    by (rule solver)
-
-  text ‹We view this equation-based subset-sum solver as an XOR solver
-    between the predicates @{term "lhs as s = rhs as s"} and @{term False}.›
-
-  have xor_inst:
-    "XOR_Solver_CL M q0 enc
-       (λas s. lhs as s = rhs as s)
-       (λas s. False)
-       L_zone R_zone"
-  proof
-    show "turing_machine k_tapes q0 M"
-      using E.turing .
-  next
-    show "⋀as s.
-      accepts_CL M (enc as s) ⟷ ((lhs as s = rhs as s) ≠ (False :: bool))"
-    proof -
-      fix as s
-      have "accepts_CL M (enc as s) ⟷ subset_sum_true as s"
-        using E.solves_subset_sum by simp
-      also have "subset_sum_true as s ⟷ (lhs as s = rhs as s)"
-        using E.equation_correct by simp
-      also have "(lhs as s = rhs as s) ⟷ ((lhs as s = rhs as s) ≠ False)"
-        by auto
-      finally show
-        "accepts_CL M (enc as s) ⟷ ((lhs as s = rhs as s) ≠ False)" .
-    qed
-  next
-    show "⋀as s. L_zone as s ⊆ {..< length (enc as s)}"
-         "⋀as s. R_zone as s ⊆ {..< length (enc as s)}"
-         "⋀as s. L_zone as s ∩ R_zone as s = {}"
-      using E.zones_wf by auto
-  qed
-
-  fix as s
-  assume dist: "distinct_subset_sums as"
-  hence hard: "hard_pair_distinct as s"
-    unfolding hard_pair_distinct_def by simp
-
-  fix as s
-  assume dist: "distinct_subset_sums as"
-  hence hard: "hard_pair_distinct as s"
-    unfolding hard_pair_distinct_def by simp
-
-  from xor_read_axiom[OF hard xor_inst poly]
-  show
-    "read0_CL M (enc as s) ∩ L_zone as s ≠ {} ∧
-     read0_CL M (enc as s) ∩ R_zone as s ≠ {}" .
-qed
-
-end  (* context All_XOR_Polytime_ReadBoth_distinct *)
-
-subsection ‹From XOR meta-axiom to the LR-read lower bound›
-
-text ‹
-  This locale packages two meta-assumptions:
-
-   • the XOR-based read axiom on the distinct subset-sum family, and
-   • a modelling bridge from equation-based solvers to the LR-read
-     reader interface used by the decision-tree lower bound.
-
-  Under these assumptions, there can be no polynomial-time
-  Cook–Levin machine that solves SUBSET-SUM via such an equation.
-›
-
-locale All_SubsetSum_from_XOR =
-  All_XOR_Polytime_ReadBoth_distinct
-+ assumes eq_to_LR_Read_TM:
-    "⋀M q0 enc lhs rhs L_zone R_zone.
-       Eq_ReadLR_SubsetSum_Solver M q0 enc lhs rhs L_zone R_zone ⟹
-       polytime_CL_machine M enc ⟹
-       LR_Read_TM M q0 enc"
-
-context All_SubsetSum_from_XOR
-begin
-
-theorem no_polytime_eq_readlr_solver:
-  shows "¬ (∃M q0 enc lhs rhs L_zone R_zone.
-              Eq_ReadLR_SubsetSum_Solver M q0 enc lhs rhs L_zone R_zone ∧
-              polytime_CL_machine M enc)"
-proof
-  assume ex:
-    "∃M q0 enc lhs rhs L_zone R_zone.
-        Eq_ReadLR_SubsetSum_Solver M q0 enc lhs rhs L_zone R_zone ∧
-        polytime_CL_machine M enc"
-  then obtain M q0 enc lhs rhs L_zone R_zone
-    where solver: "Eq_ReadLR_SubsetSum_Solver M q0 enc lhs rhs L_zone R_zone"
-      and poly:   "polytime_CL_machine M enc"
-    by blast
-
-  from eq_to_LR_Read_TM[OF solver poly]
-  have lr: "LR_Read_TM M q0 enc" .
-
-  interpret LR: LR_Read_TM M q0 enc
-    by (rule lr)
-
-  from poly obtain c d where
-    cpos: "c > 0" and
-    bound_all: "∀as s. steps_CL M (enc as s)
-                      ≤ nat (ceiling (c * (real (length as)) ^ d))"
-    unfolding polytime_CL_machine_def by blast
-
-  have family_bound:
-    "∃(c::real)>0. ∃(d::nat).
-       ∀as s. distinct_subset_sums as ⟶
-         steps_CL M (enc as s)
-           ≤ nat (ceiling (c * (real (length as)) ^ d))"
-    using cpos bound_all by blast
-
-  from LR.no_polytime_CL_on_distinct_family
-  have no_family_poly:
-    "¬ (∃(c::real)>0. ∃(d::nat).
-        ∀as s. distinct_subset_sums as ⟶
-          steps_CL M (enc as s)
-            ≤ nat (ceiling (c * (real (length as)) ^ d)))" .
-
-  from no_family_poly family_bound show False
-    by blast
-qed
-
-end  (* context All_SubsetSum_from_XOR *)
-
-definition P_eq_NP :: bool where
-  "P_eq_NP ⟷ (∀L::language. (L ∈ 𝒫) = (L ∈ 𝒩𝒫))"
-
-locale P_neq_NP_from_XOR_CL =
-  All_SubsetSum_from_XOR +
-  fixes enc0 :: "int list ⇒ int ⇒ string"
-  assumes SUBSETSUM_in_NP:
-    "SUBSETSUM_lang enc0 ∈ 𝒩𝒫"
-  assumes P_impl_eq_readlr_CL:
-    "SUBSETSUM_lang enc0 ∈ 𝒫 ⟹
-       ∃M q0 enc lhs rhs L_zone R_zone.
-         Eq_ReadLR_SubsetSum_Solver M q0 enc lhs rhs L_zone R_zone ∧
-         polytime_CL_machine M enc"
-
-context P_neq_NP_from_XOR_CL
-begin
-
-theorem P_neq_NP:
-  shows "¬ P_eq_NP"
-proof
-  assume eq: P_eq_NP
-
-  (* From P = NP and SUBSETSUM_lang enc0 ∈ NP, we get SUBSETSUM_lang enc0 ∈ P. *)
-  have inP_SUBSETSUM: "SUBSETSUM_lang enc0 ∈ 𝒫"
-    using eq SUBSETSUM_in_NP
-    unfolding P_eq_NP_def by metis
-
-  (* By the modelling assumption, this yields some equation-based CL solver. *)
-  obtain M q0 enc lhs rhs L_zone R_zone where
-    solver: "Eq_ReadLR_SubsetSum_Solver M q0 enc lhs rhs L_zone R_zone" and
-    poly:   "polytime_CL_machine M enc"
-    using P_impl_eq_readlr_CL[OF inP_SUBSETSUM] by blast
-
-  (* Package this solver as a witness for the existential
-     that no_polytime_eq_readlr_solver says cannot exist. *)
-  have ex_solver:
-    "∃M q0 enc lhs rhs L_zone R_zone.
-       Eq_ReadLR_SubsetSum_Solver M q0 enc lhs rhs L_zone R_zone ∧
-       polytime_CL_machine M enc"
-    using solver poly by blast
-
-  (* But All_SubsetSum_from_XOR tells us: no such solver exists. *)
-  from no_polytime_eq_readlr_solver ex_solver
-  show False by blast
-qed
-
-end  (* context P_neq_NP_from_XOR_CL *)
-end
+end  (* theory *)
