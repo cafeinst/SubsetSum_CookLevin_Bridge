@@ -55,6 +55,12 @@ text ‹
   polynomial-time solver satisfies the LR-read lower-bound axiom.
 ›
 
+
+text ‹
+  First, we re-prove the elementary analytic fact that exponentials beat
+  polynomials, but packaged in exactly the numerical form we later need
+  for step-count bounds of Cook–Levin machines.
+›
 lemma exp_beats_poly_ceiling_strict_TM:
   fixes c :: real and d :: nat
   assumes cpos: "c > 0"
@@ -69,6 +75,7 @@ proof -
 
   define N where "N = max N1 1"
 
+  (* Simple ceiling bound: ⌈y⌉ ≤ y + 1 *)
   have ceil_le: "of_int (ceiling y) ≤ y + 1" for y :: real
     by linarith
 
@@ -82,14 +89,17 @@ proof -
     have bound: "c * (real n) ^ d ≤ (sqrt 2) ^ n"
       by simp
 
+    (* Turn this into a bound on the ceiling. *)
     have up:
       "of_int (ceiling (c * (real n) ^ d))
          ≤ (sqrt 2) ^ n + 1"
       using ceil_le bound by linarith
 
+    (* For n ≥ 1, we have (√2)^n + 1 < 2·(√2)^n. *)
     have step: "(sqrt 2) ^ n + 1 < 2 * (sqrt 2) ^ n"
       using n_ge1 by simp
 
+    (* Rewrite 2·√(2^n) as 2·(√2)^n to match the bound. *)
     have "2 * sqrt ((2::real) ^ n) = 2 * (sqrt 2) ^ n"
       by (simp add: real_sqrt_power)
     with up step
@@ -101,6 +111,12 @@ qed
 lemma length_pow2_list[simp]: "length (pow2_list n) = n"
   by (simp add: pow2_list_def)
 
+text ‹
+  For every length n, we can choose a “hard” weight list as of that
+  length, namely the powers of 2; these have distinct subset sums.
+  This is the TM-side analogue of the hard family used in the
+  decision-tree theory.
+›
 lemma exists_hard_TM:
   "∀n. ∃as. length as = n ∧ distinct_subset_sums as"
 proof
@@ -113,12 +129,16 @@ proof
     by blast
 qed
 
+
 subsection ‹Basic encoding to Cook–Levin symbols›
 
 text ‹
   We use Cook–Levin's tape alphabet:
     0 = blank, 1 = start symbol, 2 = "0", 3 = "1".
   The input instance (a bool list) is written as a row of 2/3 symbols.
+
+  We keep this as lightweight as possible: we only need a simple
+  mapping from booleans to tape symbols and a fixed tape count k_tapes.
 ›
 
 definition bool_to_symbols :: "bool list ⇒ symbol list" where
@@ -129,11 +149,20 @@ text ‹We will run our machines with two tapes: input (0) and output (1).›
 definition k_tapes :: nat where
   "k_tapes = 2"
 
+
 subsection ‹Cook–Levin step-count and acceptance›
 
 text ‹
   We define a simple “halting time” function steps_CL, and a corresponding
   acceptance predicate accepts_CL for a Cook–Levin machine.
+
+  • steps_CL M x is the least t at which the control state index
+    is ≥ length M (Cook–Levin’s halting convention).
+
+  • conf_CL M x t is the configuration after t steps.
+
+  • accepts_CL M x says that after steps_CL M x steps, the symbol under
+    the head on tape 1 (the output tape) is 3, i.e. “1”.
 ›
 
 definition steps_CL :: "machine ⇒ bool list ⇒ nat" where
@@ -159,11 +188,15 @@ text ‹
   abstractly in terms of steps_CL and accepts_CL, not about low-level configs.
 ›
 
+
 subsection ‹Which input bits does a Cook–Levin machine read?›
 
 text ‹
   The set @{term "read0_CL M x"} collects all indices @{term i} on the
   input tape (tape 0) that the head visits before halting on input @{term x}.
+
+  This abstracts away from the exact timing of visits and keeps only the
+  set of input positions whose contents the machine has “inspected”.
 ›
 
 definition read0_CL :: "machine ⇒ bool list ⇒ nat set" where
@@ -177,16 +210,20 @@ lemma read0_CL_subset_indices:
   "read0_CL M x ⊆ {..<length x}"
   unfolding read0_CL_def by auto
 
+
 subsection ‹Configuration agreement and unread positions›
 
 text ‹
   Two configurations agree except possibly at position i on tape 0.
+
   This is a convenient concept if one wants to reason about how a single
   unread bit on the input tape can be flipped without affecting the
-  rest of the machine's behaviour.  In this theory we will *not* prove
-  a general unread-flip lemma for all Cook–Levin machines; instead,
-  we package the desired unread-agreement property as a locale axioms
-  for the particular machines we care about (see below).
+  rest of the machine's behaviour.
+
+  In this theory we will *not* prove a general unread-flip lemma for all
+  Cook–Levin machines; instead, we package the desired unread-agreement
+  property as locale axioms for the particular machines we care about
+  (see below).
 ›
 
 definition configs_agree_except_at :: "nat ⇒ config ⇒ config ⇒ bool" where
@@ -230,6 +267,7 @@ lemma head0_bounded:
   unfolding head0_CL_def conf_CL_def
   by simp
 
+
 subsection ‹Unread-agreement property as a locale axiom›
 
 text ‹
@@ -253,17 +291,22 @@ locale Flip_Agreement_CL =
     "⋀x i. i < length x ⟹ i ∉ read0_CL M x
           ⟹ accepts_CL M x = accepts_CL M (flip_bool_list x i)"
 
+
 subsection ‹The mathematical SUBSET-SUM predicate›
 
 text ‹
   This is the “true” subset-sum specification: we ask if there exists a
   0/1-vector xs selecting a subset of as that sums to s.
+
+  It is intentionally independent of Turing machines or encodings;
+  later we connect it to NP-style verifiers and Cook–Levin machines.
 ›
 
 definition subset_sum_true :: "int list ⇒ int ⇒ bool" where
   "subset_sum_true as s ⟷
      (∃xs ∈ bitvec (length as).
         (∑ i<length as. as ! i * xs ! i) = s)"
+
 
 subsection ‹Certificate-based view of SUBSET-SUM›
 
@@ -274,6 +317,9 @@ text ‹
     • length xs = length as
     • each entry is 0 or 1
     • the weighted sum equals s.
+
+  We package this as ss_cert_ok and then show the obvious equivalence with
+  subset_sum_true.
 ›
 
 definition ss_cert_ok :: "int list ⇒ int ⇒ int list ⇒ bool" where
@@ -313,6 +359,7 @@ next
     using sum_eq by blast
 qed
 
+
 subsection ‹SUBSET-SUM is in NP (via an abstract verifier)›
 
 text ‹
@@ -327,6 +374,9 @@ text ‹
 
   The correctness condition ties everything back to @{term ss_cert_ok} and
   hence to @{term subset_sum_true}.
+
+  This locale is deliberately generic in k, G, V, p, T, and fverify; later
+  we will instantiate it with Cook–Levin style encodings when needed.
 ›
 
 locale SS_Verifier_NP =
@@ -364,6 +414,8 @@ text ‹
   encoding enc0 abstract, and assume a separate certificate encoding
   enc_cert.  The combined encoding just concatenates them with a fixed
   separator.
+
+  This is the standard “instance || separator || certificate” trick.
 ›
 
 definition sep :: "bool list" where
@@ -376,7 +428,23 @@ definition enc_pair ::
   "enc_pair enc0 enc_cert as s xs =
      enc0 as s @ sep @ enc_cert as s xs"
 
+
 subsection ‹A Cook–Levin verifier for SUBSET-SUM›
+
+text ‹
+  Locale SS_Verifier_CL specialises the abstract SS_Verifier_NP idea to
+  the Cook–Levin world:
+
+   • V is a k_tapes Cook–Levin machine.
+
+   • On input enc_pair enc0 enc_cert as s xs, if length xs = length as,
+     V accepts exactly when xs is a correct subset-sum witness
+     (ss_cert_ok as s xs).
+
+   • The running time of V is bounded by a polynomial in the instance
+     size |enc0 as s|, uniformly over all certificates xs of matching
+     length.
+›
 
 locale SS_Verifier_CL =
   fixes V        :: machine
@@ -411,20 +479,30 @@ text ‹
      length.
 ›
 
+
 section ‹SUBSET-SUM as a language›
 
 text ‹
   Given an instance encoding function @{term enc0} which maps a pair
   (as,s) to a bitstring, we define the SUBSET-SUM language as the set
   of all strings that encode a true SUBSET-SUM instance.
+
+  This is the standard “language view” of the decision problem.
 ›
 
 definition SUBSETSUM_lang :: "(int list ⇒ int ⇒ string) ⇒ language" where
   "SUBSETSUM_lang enc0 ≡
      {x. ∃as s. x = enc0 as s ∧ subset_sum_true as s}"
 
+
 subsection ‹SUBSET-SUM is in NP (relative to enc0)›
 
+text ‹
+  The next lemma packages the SS_Verifier_NP locale into the
+  ‹NP_output_len_1› characterization of NP from ‹Cook_Levin.NP›.
+  It says: if there is a suitable NP-style verifier for SUBSET-SUM
+  w.r.t. enc0, then the language SUBSETSUM_lang enc0 is in 𝒩𝒫.
+›
 lemma SUBSETSUM_in_NP_from_verifier:
   fixes k G V p T fverify enc0 enc_cert
   assumes verif: "SS_Verifier_NP k G V p T fverify enc0 enc_cert"
@@ -464,7 +542,7 @@ proof -
       show "x ∈ SUBSETSUM_lang enc0 ⟷
               (∃u. length u = p (length x) ∧ fverify ⟨x, u⟩ = [𝕀])"
       proof
-        (* (⇒) completeness direction *)
+        (* (⇒) completeness direction: from language membership to a witness u *)
         assume "x ∈ SUBSETSUM_lang enc0"
         then obtain as s where
           x_def: "x = enc0 as s" and
@@ -481,7 +559,7 @@ proof -
           using x_def len_u acc by blast
         thus "∃u. length u = p (length x) ∧ fverify ⟨x, u⟩ = [𝕀]" .
       next
-        (* (⇐) soundness direction *)
+        (* (⇐) soundness direction: from a witness u to language membership *)
         assume RHS: "∃u. length u = p (length x) ∧ fverify ⟨x, u⟩ = [𝕀]"
         then obtain u where
           len_u: "length u = p (length x)" and
@@ -553,6 +631,9 @@ text ‹
    • M is a well-formed k_tapes Cook–Levin machine,
    • enc encodes (as,s) as a bool list,
    • M decides subset_sum_true at that encoding.
+
+  Inside the locale, steps_TM and read0_TM are just convenient
+  aliases of steps_CL and read0_CL on enc as s.
 ›
 
 locale CL_SubsetSum_Solver =
@@ -581,6 +662,7 @@ lemma read0_TM_subset:
   using read0_CL_subset_indices by simp
 
 end  (* context CL_SubsetSum_Solver *)
+
 
 subsection ‹Equation-based read requirement›
 
@@ -687,6 +769,13 @@ where
         ∀as s. steps_CL M (enc as s)
                ≤ nat (ceiling (c * (real (length as)) ^ d)))"
 
+text ‹
+  The locale LR_Read_TM is the Cook–Levin analogue of the abstract
+  reader-model locale ‹SubsetSum_Lemma1› from the decision-tree theory.
+  It assumes that the CL machine M (with encoding enc) satisfies the
+  combinatorial lower-bound condition on hard instances, and then
+  imports the Ω(√(2^n)) lower bound and “no polynomial-time” corollary.
+›
 locale LR_Read_TM =
   CL_SubsetSum_Solver M q0 enc
   for M :: machine and q0 :: nat
@@ -698,6 +787,7 @@ locale LR_Read_TM =
          ≤ steps_TM as s"
 begin
 
+(* Instantiate the abstract reader-model locale with steps_TM. *)
 interpretation Reader: SubsetSum_Lemma1 steps_TM
 proof
   show "⋀as s n. n = length as ⟹ distinct_subset_sums as ⟹
@@ -707,6 +797,9 @@ proof
     by (rule lemma1_ex_TM)
 qed
 
+text ‹
+  We inherit the abstract Ω(√(2^n)) lower bound from SubsetSum_Lemma1.
+›
 theorem subset_sum_sqrt_lower_bound_TM:
   fixes as :: "int list" and s :: int and n :: nat
   assumes n_def: "n = length as" and distinct: "distinct_subset_sums as"
@@ -729,6 +822,12 @@ proof -
     by simp
 qed
 
+text ‹
+  Now we replay the “exponential beats polynomial” argument in the TM
+  setting: if steps_TM were polynomially bounded over all distinct
+  subset-sum families, we would contradict the inherited Ω(√(2^n))
+  lower bound using the hard family from exists_hard_TM.
+›
 theorem no_polytime_TM_on_distinct_family:
   shows "¬ (∃(c::real)>0. ∃(d::nat).
              ∀as s. distinct_subset_sums as ⟶
@@ -744,6 +843,7 @@ proof
                     steps_TM as s ≤ nat (ceiling (c * (real (length as)) ^ d))"
     by blast
 
+  (* Use the analytic lemma in the TM-friendly form. *)
   from exp_beats_poly_ceiling_strict_TM[OF cpos]
   obtain N :: nat where N:
     "∀n≥N. of_int (ceiling (c * (real n) ^ d))
@@ -752,6 +852,7 @@ proof
 
   have N_ge: "N ≥ N" by simp
 
+  (* Instantiate a hard instance as of length N. *)
   from exists_hard_TM
   obtain as where len_as: "length as = N"
     and dist_as: "distinct_subset_sums as"
@@ -767,6 +868,7 @@ proof
        < 2 * sqrt ((2::real) ^ (length as))"
     by (simp add: len_as)
 
+  (* Lower bound from Lemma 1 / Reader locale. *)
   have lb:
     "2 * sqrt ((2::real) ^ N) ≤ real (steps_TM as 0)"
   proof -
@@ -781,10 +883,12 @@ proof
     thus ?thesis .
   qed
 
+  (* Polynomial upper bound assumption, instantiated to as, s=0. *)
   have ub_nat:
     "steps_TM as 0 ≤ nat (ceiling (c * (real (length as)) ^ d))"
     using bound dist_as by simp
 
+  (* Relate nat ⌈…⌉ and of_int ⌈…⌉. *)
   have nonneg: "0 ≤ c * (real (length as)) ^ d"
     using cpos by simp
   hence ceil_ge0: "0 ≤ ceiling (c * (real (length as)) ^ d)"
@@ -799,10 +903,15 @@ proof
        ≤ of_int (ceiling (c * (real (length as)) ^ d))"
     using conv by simp
 
+  (* Lower bound, upper bound, and strict separation contradict each other. *)
   from ceil_lt' lb ub_real
   show False using len_as by auto
 qed
 
+text ‹
+  The same argument phrased in terms of the underlying Cook–Levin
+  step function steps_CL and encoding enc.
+›
 corollary no_polytime_CL_on_distinct_family:
   shows "¬ (∃(c::real)>0. ∃(d::nat).
              ∀as s. distinct_subset_sums as ⟶
