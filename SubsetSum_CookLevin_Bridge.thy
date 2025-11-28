@@ -13,10 +13,24 @@ text ‹
   SubsetSum_DecisionTree and connects it to the concrete Cook–Levin
   Turing-machine model of Cook_Levin.NP.
 
-  • On the decision-tree side, SubsetSum_DecisionTree proves a lower bound
-    of Ω(√(2^n)) for any “flip-complete reader” model of SUBSET-SUM.  This is
-    phrased abstractly via a step function steps and canonical LHS/RHS
-    partial-sum sets LHS and RHS.
+  • On the decision-tree side, the theory SubsetSum_DecisionTree establishes
+    a lower bound of Ω(√(2ⁿ)) under the abstract assumptions encoded in the
+    locale SubsetSum_Lemma1.
+
+    Although the locale does not use the phrase “flip-complete reader,” its two
+    axioms—canonical LHS/RHS coverage and a cost equal to the number of
+    remaining possible values—are exactly the structural properties that define
+    a flip-complete reader model of SUBSET-SUM.
+
+    In other words, SubsetSum_Lemma1 is a formal, implementation-independent
+    version of the flip-complete reader model, and the lower bound is proved
+    solely from these properties.
+
+    Consequently, the concrete decision-tree model satisfies the locale
+    assumptions and therefore inherits the √(2ⁿ) lower bound.
+
+    Thus, the decision-tree model instantiates SubsetSum_Lemma1 and inherits
+    the √(2ⁿ) lower bound.
 
   • In the present file, we build the bridge to Cook–Levin machines in
     several layers:
