@@ -44,28 +44,39 @@ text ‹
           SUBSET-SUM via an equality of two “sides” (lhs, rhs), and that
           on distinct-subset-sums instances it must read at least one bit
           from the zone encoding the left side and at least one bit from the
-          zone encoding the right side.  This captures an adversary-style
+          zone encoding the right side. This captures an adversary-style
           “must look at L and R” requirement, but does not yet align with
           the canonical LHS/RHS splits.
 
       – LR_Read_TM:
           A more structured assumption on M, still in the Cook–Levin model,
           which directly instantiates the abstract lower-bound locale
-          SubsetSum_Lemma1.  Concretely, it assumes that on any hard
+          SubsetSum_Lemma1. Concretely, it assumes that on any hard
           instance of length n, there exists a canonical split index
           k ≤ n such that
 
               steps_TM as s ≥
                 card (LHS (e_k as s k) n) + card (RHS (e_k as s k) n).
 
-          Inside this locale we import the Ω(√(2^n)) lower bound and the
-          corresponding “no polynomial-time” corollaries.
+          Inside this locale we import the Ω(√(2^n)) lower bound and the 
+          corresponding “no polynomial-time solver on hard instances” 
+          corollaries.
 
-      – All_SubsetSum_Polytime_LR_Read (in a later theory):
-          A meta-assumption that *every* polynomial-time Cook–Levin solver
-          for SUBSET-SUM satisfies the LR_Read_TM axiom.  Under this single
-          assumption, one derives that there is no polynomial-time CL machine
-          deciding SUBSET-SUM.
+      – P_neq_NP_LR_Model (in a later theory):
+          A locale that packages the global LR–read meta-assumptions.
+          These assumptions state that:
+
+          • SUBSET-SUM ∈ NP using the chosen encoding enc0;
+          • if SUBSET-SUM ∈ P, then there exists a polynomial-time
+            Cook–Levin solver expressed in the Eq_ReadLR_SubsetSum_Solver
+            interface;
+          • every such equation-based polynomial-time solver must satisfy
+            the LR_Read_TM axiom.
+
+        Under these three meta-assumptions, one proves that there is
+        no polynomial-time Cook–Levin machine deciding SUBSET-SUM.
+        Combined with P = NP ⇒ SUBSET-SUM ∈ P, this yields the
+        conditional theorem “P ≠ NP”.
 
   The key point is that all combinatorial lower-bound reasoning lives in the
   reader-style locales (SubsetSum_Lemma1 on the abstract side and
@@ -759,10 +770,11 @@ text ‹
   R” condition of Eq_ReadLR_SubsetSum_Solver *and* aligning with the
   canonical LHS/RHS partial-sum splits should give rise to an instance of
   LR_Read_TM.  In this theory we keep that connection as a meta-level
-  assumption (see the locales All_SubsetSum_Polytime_LR_Read and
-  All_SubsetSum_Polytime_Eq_ReadLR below). All formal lower-bound
-  proofs are phrased inside LR_Read_TM, which is the Cook–Levin side
-  of the flip-complete/reader-style model.
+  assumption (see the locale P_neq_NP_LR_Model in SubsetSum_PneqNP,
+  which packages the global LR–read meta-assumptions needed to transport 
+  the abstract √(2ⁿ) lower bound into a conditional P ≠ NP result.)
+  All formal lower-bound proofs are phrased inside LR_Read_TM, which 
+  is the Cook–Levin side of the flip-complete/reader-style model.
 ›
 
 section ‹LR-read TM interface and lower bound inheritance›
@@ -884,7 +896,30 @@ locale LR_Read_TM =
                 card (seenL_TM as s k) + card (seenR_TM as s k)"
 begin
 
-(* Instantiate the abstract reader-model locale with TM-specific functions. *)
+text ‹
+  We now instantiate the abstract reader-model locale SubsetSum_Lemma1 with
+  the TM-specific functions steps_TM, seenL_TM and seenR_TM.
+
+  The command
+
+    interpretation Reader: SubsetSum_Lemma1 steps_TM seenL_TM seenR_TM
+
+  checks that the assumptions of SubsetSum_Lemma1 are satisfied, using the
+  locale axioms coverage_TM and steps_lb_TM.  Once this succeeds, *all*
+  theorems of SubsetSum_Lemma1 become available in the current context,
+  prefixed by Reader.  In particular, we obtain the lower-bound theorem
+
+    Reader.subset_sum_sqrt_lower_bound
+
+  which states that, on any hard instance with n = length as,
+
+    2 * sqrt ((2::real) ^ n) ≤ real (steps_TM as s).
+
+  The rest of this locale simply rephrases that abstract bound in the concrete
+  Cook–Levin step-count steps_CL M (enc as s) and derives the “no polynomial”
+  corollaries for machines satisfying LR_Read_TM.
+›
+
 interpretation Reader:
   SubsetSum_Lemma1 steps_TM seenL_TM seenR_TM
 proof
