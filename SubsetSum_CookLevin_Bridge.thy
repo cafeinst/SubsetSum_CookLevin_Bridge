@@ -649,7 +649,6 @@ proof -
     using witness' by blast
 qed
 
-
 subsection ‹A Cook–Levin machine that solves SUBSET-SUM›
 
 text ‹
