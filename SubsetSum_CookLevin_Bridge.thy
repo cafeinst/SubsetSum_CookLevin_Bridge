@@ -17,20 +17,16 @@ text ‹
     a lower bound of Ω(√(2ⁿ)) under the abstract assumptions encoded in the
     locale SubsetSum_Lemma1.
 
-    Although the locale does not use the phrase “flip-complete reader,” its two
-    axioms—canonical LHS/RHS coverage and a cost equal to the number of
-    remaining possible values—are exactly the structural properties that define
-    a flip-complete reader model of SUBSET-SUM.
+    Although the locale does not use the phrase “flip-complete reader”, its two
+    axioms — canonical LHS/RHS coverage and a cost equal to the number of
+    remaining possible values — are exactly the structural properties that
+    define a flip-complete reader model of SUBSET-SUM. Thus SubsetSum_Lemma1
+    is a formal, implementation-independent version of this model, and the
+    lower bound is proved solely from these properties.
 
-    In other words, SubsetSum_Lemma1 is a formal, implementation-independent
-    version of the flip-complete reader model, and the lower bound is proved
-    solely from these properties.
-
-    Consequently, the concrete decision-tree model satisfies the locale
-    assumptions and therefore inherits the √(2ⁿ) lower bound.
-
-    Thus, the decision-tree model instantiates SubsetSum_Lemma1 and inherits
-    the √(2ⁿ) lower bound.
+    In particular, the concrete decision-tree model of SUBSET-SUM defined in
+    SubsetSum_DecisionTree is shown to satisfy the locale assumptions and
+    therefore inherits the √(2ⁿ) lower bound.
 
   • In the present file, we build the bridge to Cook–Levin machines in
     several layers:
@@ -42,30 +38,28 @@ text ‹
       – Eq_ReadLR_SubsetSum_Solver:
           Strengthens CL_SubsetSum_Solver by assuming that M decides
           SUBSET-SUM via an equality of two “sides” (lhs, rhs), and that
-          on distinct-subset-sums instances it must read at least one bit
-          from the zone encoding the left side and at least one bit from the
-          zone encoding the right side. This captures an adversary-style
-          “must look at L and R” requirement, but does not yet align with
-          the canonical LHS/RHS splits.
+          on distinct-subset-sums instances it must read at least one bit from
+          the zone encoding the left side and at least one bit from the zone
+          encoding the right side. This captures an adversary-style “must look
+          at L and R” requirement, but does not yet align with the canonical
+          LHS/RHS partial-sum splits.
 
       – LR_Read_TM:
           A more structured assumption on M, still in the Cook–Levin model,
           which directly instantiates the abstract lower-bound locale
           SubsetSum_Lemma1. Concretely, it assumes that on any hard
-          instance of length n, there exists a canonical split index
-          k ≤ n such that
+          instance of length n there exists a canonical split index k ≤ n
+          such that
 
               steps_TM as s ≥
                 card (LHS (e_k as s k) n) + card (RHS (e_k as s k) n).
 
-          Inside this locale we import the Ω(√(2^n)) lower bound and the 
-          corresponding “no polynomial-time solver on hard instances” 
+          Inside this locale we import the Ω(√(2ⁿ)) lower bound and the
+          corresponding “no polynomial-time solver on hard instances”
           corollaries.
 
       – P_neq_NP_LR_Model (in a later theory):
-          A locale that packages the global LR–read meta-assumptions.
-          These assumptions state that:
-
+          A locale that packages the global LR–read meta-assumptions:
           • SUBSET-SUM ∈ NP using the chosen encoding enc0;
           • if SUBSET-SUM ∈ P, then there exists a polynomial-time
             Cook–Levin solver expressed in the Eq_ReadLR_SubsetSum_Solver
@@ -73,16 +67,40 @@ text ‹
           • every such equation-based polynomial-time solver must satisfy
             the LR_Read_TM axiom.
 
-        Under these three meta-assumptions, one proves that there is
-        no polynomial-time Cook–Levin machine deciding SUBSET-SUM.
-        Combined with P = NP ⇒ SUBSET-SUM ∈ P, this yields the
-        conditional theorem “P ≠ NP”.
+        Under these three meta-assumptions, one proves that there is no
+        polynomial-time Cook–Levin machine deciding SUBSET-SUM. Combined
+        with “P = NP ⟹ SUBSET-SUM ∈ P”, this yields the conditional theorem
+        “P ≠ NP”.
 
   The key point is that all combinatorial lower-bound reasoning lives in the
-  reader-style locales (SubsetSum_Lemma1 on the abstract side and
-  LR_Read_TM on the Cook–Levin side).  The remaining gap to a full
-  P ≠ NP statement is precisely the meta-assumption that every polynomial-time
-  solver lies in this LR-read class.
+  reader-style locales (SubsetSum_Lemma1 on the abstract side and LR_Read_TM
+  on the Cook–Levin side). The remaining gap to a full P ≠ NP statement is
+  precisely the meta-assumption that every polynomial-time solver lies in this
+  LR-read class.
+
+  ⟦ **Remark on Scope of the LR–read Assumption.** ⟧
+  The LR–read model introduced in this theory is not intended to describe every
+  algorithm for every variant of SUBSET-SUM. In particular, the version of the
+  problem over the field 𝔽₂, with coefficients in a vector space 𝔽₂^m, admits
+  polynomial-time algorithms based on Gaussian elimination, and these do not
+  satisfy the LR–read structure.
+
+  The reason is structural. The locale Eq_ReadLR_SubsetSum_Solver assumes
+  that a solver ultimately decides satisfiability by comparing the values of a
+  single equation lhs as s = rhs as s whose left-hand and right-hand sides
+  are encoded in two disjoint, stable regions (“zones”) of the input. The
+  LR–read coverage property further requires that on hard instances a solver
+  must inspect at least one bit from each zone.
+
+  Gaussian elimination violates these assumptions: it operates on a system
+  of equations rather than a single one, applies arbitrary invertible row
+  operations that freely mix all coordinates of the input, and has no canonical
+  decomposition into a left and a right region whose bits must be consulted
+  separately. Consequently, the LR–read framework does not apply to such
+  algorithms, and the lower bound developed in SubsetSum_DecisionTree does
+  not constrain them. This is entirely intended: our results concern only
+  those solvers whose information-flow structure is captured by the LR–read
+  axioms.
 ›
 
 text ‹
@@ -299,7 +317,7 @@ subsection ‹Unread-agreement property as a locale axiom›
 
 text ‹
   We now *axiomatize* the unread-flip agreement property for a given
-  Cook–Levin machine.  Intuitively, this says:
+  Cook–Levin machine. Intuitively, this says:
 
     • if bit i of x is never read on tape 0 in the run of M on input x,
       then flipping that bit does not change whether M accepts.
