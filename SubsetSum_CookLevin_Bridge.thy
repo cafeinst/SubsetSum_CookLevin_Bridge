@@ -40,8 +40,8 @@ text ‹
           SUBSET-SUM via an equality of two “sides” (lhs, rhs), and that
           on distinct-subset-sums instances it must read at least one bit from
           the zone encoding the left side and at least one bit from the zone
-          encoding the right side. This captures an adversary-style “must look
-          at L and R” requirement, but does not yet align with the canonical
+          encoding the right side. This captures an adversary-style “must look 
+          at L and R” requirement, but need not align with the canonical 
           LHS/RHS partial-sum splits.
 
       – LR_Read_TM:
@@ -80,10 +80,10 @@ text ‹
 
   ⟦ **Remark on Scope of the LR–read Assumption.** ⟧
   The LR–read model introduced in this theory is not intended to describe every
-  algorithm for every variant of SUBSET-SUM. In particular, the version of the
-  problem over the field 𝔽₂, with coefficients in a vector space 𝔽₂^m, admits
-  polynomial-time algorithms based on Gaussian elimination, and these do not
-  satisfy the LR–read structure.
+  algorithm for every variant of SUBSET-SUM. In particular, the linear-algebraic 
+  version of the problem over the field 𝔽₂, with coefficients in a vector space 
+  𝔽₂^m, admits polynomial-time algorithms based on Gaussian elimination, and 
+  these do not satisfy the LR–read structure.
 
   The reason is structural. The locale Eq_ReadLR_SubsetSum_Solver assumes
   that a solver ultimately decides satisfiability by comparing the values of a
@@ -96,11 +96,11 @@ text ‹
   of equations rather than a single one, applies arbitrary invertible row
   operations that freely mix all coordinates of the input, and has no canonical
   decomposition into a left and a right region whose bits must be consulted
-  separately. Consequently, the LR–read framework does not apply to such
-  algorithms, and the lower bound developed in SubsetSum_DecisionTree does
-  not constrain them. This is entirely intended: our results concern only
-  those solvers whose information-flow structure is captured by the LR–read
-  axioms.
+  separately. Consequently, the LR–read framework as formalised here does not
+  apply to such algorithms, and the lower bound developed in
+  SubsetSum_DecisionTree does not constrain them. This is entirely intended:
+  our results concern only those solvers whose information-flow structure is
+  captured by the LR–read axioms.
 ›
 
 text ‹
@@ -523,7 +523,6 @@ text ‹
      size |enc0 as s|, uniformly over all certificates xs of matching
      length.
 ›
-
 
 section ‹SUBSET-SUM as a language›
 
