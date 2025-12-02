@@ -17,12 +17,12 @@ text ‹
     a lower bound of Ω(√(2ⁿ)) under the abstract assumptions encoded in the
     locale SubsetSum_Lemma1.
 
-    Although the locale does not use the phrase “flip-complete reader”, its two
-    axioms — canonical LHS/RHS coverage and a cost equal to the number of
-    remaining possible values — are exactly the structural properties that
-    define a flip-complete reader model of SUBSET-SUM. Thus SubsetSum_Lemma1
-    is a formal, implementation-independent version of this model, and the
-    lower bound is proved solely from these properties.
+    The locale has two key axioms: canonical LHS/RHS coverage, and a cost
+    lower bound given by the number of “remaining possible values”.  These
+    axioms capture a very general abstract model of how an algorithm gains 
+    information from a subset-sum instance.  The lower bound in
+     SubsetSum_Lemma1 is proved purely from these axioms, without reference
+    to any particular implementation.
 
     In particular, the concrete decision-tree model of SUBSET-SUM defined in
     SubsetSum_DecisionTree is shown to satisfy the locale assumptions and
@@ -73,10 +73,10 @@ text ‹
         “P ≠ NP”.
 
   The key point is that all combinatorial lower-bound reasoning lives in the
-  reader-style locales (SubsetSum_Lemma1 on the abstract side and LR_Read_TM
+  LHS/RHS-style locales (SubsetSum_Lemma1 on the abstract side and LR_Read_TM
   on the Cook–Levin side). The remaining gap to a full P ≠ NP statement is
   precisely the meta-assumption that every polynomial-time solver lies in this
-  LR-read class.
+  LR–read class.
 
   ⟦ **Remark on Scope of the LR–read Assumption.** ⟧
   The LR–read model introduced in this theory is not intended to describe every
@@ -513,7 +513,7 @@ locale SS_Verifier_CL =
 text ‹
   Intuitively:
 
-   • V is a k_tape Cook–Levin machine.
+   • V is a k_tapes Cook–Levin machine.
 
    • On input enc_pair enc0 enc_cert as s xs, if length xs = length as,
      V accepts exactly when xs is a correct subset-sum witness
@@ -764,9 +764,9 @@ text ‹
 
     • SUBSET-SUM is decided via some equation
         lhs as s = rhs as s
-      (up to injective re-encoding, e.g. f (lhs as s) = f (rhs as s)),
+      (up to injective re-encoding, e.g. f (lhs as s) = f (rhs as s)), and
 
-    • and on distinct-subset-sums instances the machine must read at
+    • on distinct-subset-sums instances the machine must read at
       least one bit from the part of the input encoding the “left side”
       and at least one bit from the part encoding the “right side”
       (L_zone as s and R_zone as s).
@@ -780,17 +780,17 @@ text ‹
 
   on any distinct-subset-sums instance of length n.  This matches the
   combinatorial structure exploited in SubsetSum_DecisionTree and is
-  exactly what is needed to instantiate the abstract reader model.
+  exactly what is needed to instantiate the abstract lower-bound locale.
 
   Intuitively, any machine satisfying the concrete “must read from L and
   R” condition of Eq_ReadLR_SubsetSum_Solver *and* aligning with the
   canonical LHS/RHS partial-sum splits should give rise to an instance of
   LR_Read_TM.  In this theory we keep that connection as a meta-level
   assumption (see the locale P_neq_NP_LR_Model in SubsetSum_PneqNP,
-  which packages the global LR–read meta-assumptions needed to transport 
-  the abstract √(2ⁿ) lower bound into a conditional P ≠ NP result.)
-  All formal lower-bound proofs are phrased inside LR_Read_TM, which 
-  is the Cook–Levin side of the flip-complete/reader-style model.
+  which packages the global LR–read meta-assumptions needed to transport
+  the abstract √(2ⁿ) lower bound into a conditional P ≠ NP result).
+  All formal lower-bound proofs are phrased inside LR_Read_TM, which is
+  the Cook–Levin side of this LHS/RHS-based model.
 ›
 
 section ‹LR-read TM interface and lower bound inheritance›
@@ -814,7 +814,7 @@ where
 text ‹
   We inherit the abstract Ω(√(2^n)) lower bound from SubsetSum_Lemma1.
 
-  The abstract reader-model locale SubsetSum_Lemma1 (defined in the theory
+  The abstract lower-bound locale SubsetSum_Lemma1 (defined in the theory
   SubsetSum_DecisionTree) packages the combinatorial lower bound we are
   importing here.
 
@@ -913,7 +913,7 @@ locale LR_Read_TM =
 begin
 
 text ‹
-  We now instantiate the abstract reader-model locale SubsetSum_Lemma1 with
+  We now instantiate the abstract lower-bound locale SubsetSum_Lemma1 with
   the TM-specific functions steps_TM, seenL_TM and seenR_TM.
 
   The command
