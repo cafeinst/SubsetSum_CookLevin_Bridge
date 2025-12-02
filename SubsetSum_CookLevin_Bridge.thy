@@ -17,14 +17,20 @@ text ‹
     a lower bound of Ω(√(2ⁿ)) under the abstract assumptions encoded in the
     locale SubsetSum_Lemma1.
 
-    The locale has two key axioms: canonical LHS/RHS coverage, and a cost
-    lower bound given by the number of “remaining possible values”.  These
-    axioms capture a very general abstract model of how an algorithm gains 
-    information from a subset-sum instance.  The lower bound in
-     SubsetSum_Lemma1 is proved purely from these axioms, without reference
-    to any particular implementation.
+    The locale assumes only two structural axioms:
+    (1) for every hard instance there exists a split k at which the algorithm’s
+        information-flow matches the canonical LHS/RHS sets, and
+    (2) distinguishing each possible L- or R-value contributes at least one
+        unit of cost (steps ≥ card(seenL) + card(seenR)).
 
-    In particular, the concrete decision-tree model of SUBSET-SUM defined in
+    These axioms describe an abstract information-use interface: they specify
+    how many distinct L/R-values the solver must be able to rule out or
+    distinguish, without committing to any particular computational model
+    (decision trees, Turing machines, etc.).  The √(2ⁿ) lower bound proved in
+    SubsetSum_Lemma1 follows solely from these axioms, independent of how any
+    actual solver is implemented.
+
+    In particular, the concrete decision-tree model defined in
     SubsetSum_DecisionTree is shown to satisfy the locale assumptions and
     therefore inherits the √(2ⁿ) lower bound.
 
@@ -75,32 +81,35 @@ text ‹
   The key point is that all combinatorial lower-bound reasoning lives in the
   LHS/RHS-style locales (SubsetSum_Lemma1 on the abstract side and LR_Read_TM
   on the Cook–Levin side). The remaining gap to a full P ≠ NP statement is
-  precisely the meta-assumption that every polynomial-time solver lies in this
-  LR–read class.
+  precisely the meta-assumption that every polynomial-time solver lies in the
+  LR-read class.
 
-  ⟦ **Remark on Scope of the LR–read Assumption.** ⟧
-  The LR–read model introduced in this theory is not intended to describe every
-  algorithm for every variant of SUBSET-SUM. In particular, the linear-algebraic 
-  version of the problem over the field 𝔽₂, with coefficients in a vector space 
-  𝔽₂^m, admits polynomial-time algorithms based on Gaussian elimination, and 
-  these do not satisfy the LR–read structure.
+  ⟦ Remark on the Scope of the LR–read Assumption. ⟧
+  The LR–read model introduced in this theory is not meant to encompass all
+  algorithms for all variants of SUBSET-SUM.  For example, the linear-algebraic
+  version of the problem over the field 𝔽₂, with coefficients in 𝔽₂^m, admits
+  polynomial-time algorithms based on Gaussian elimination; such algorithms are
+  not LR–read.
 
-  The reason is structural. The locale Eq_ReadLR_SubsetSum_Solver assumes
-  that a solver ultimately decides satisfiability by comparing the values of a
-  single equation lhs as s = rhs as s whose left-hand and right-hand sides
-  are encoded in two disjoint, stable regions (“zones”) of the input. The
-  LR–read coverage property further requires that on hard instances a solver
-  must inspect at least one bit from each zone.
+  The reason is structural.  The locale Eq_ReadLR_SubsetSum_Solver assumes that a
+  solver ultimately decides satisfiability by comparing the values of a *single*
+  equation
 
-  Gaussian elimination violates these assumptions: it operates on a system
-  of equations rather than a single one, applies arbitrary invertible row
-  operations that freely mix all coordinates of the input, and has no canonical
-  decomposition into a left and a right region whose bits must be consulted
-  separately. Consequently, the LR–read framework as formalised here does not
-  apply to such algorithms, and the lower bound developed in
-  SubsetSum_DecisionTree does not constrain them. This is entirely intended:
-  our results concern only those solvers whose information-flow structure is
-  captured by the LR–read axioms.
+      lhs as s = rhs as s,
+
+  whose left-hand and right-hand sides are encoded in two disjoint, stable
+  regions (“zones”) of the input.  The LR–read coverage property then requires that
+  on hard instances the solver must inspect at least one bit from each zone.
+
+  Gaussian elimination violates these assumptions: it manipulates a *system* of
+  equations, applies arbitrary invertible row operations that freely mix all
+  coordinates of the input, and has no meaningful decomposition into a left and a
+  right region whose bits must be consulted separately.  Consequently, the LR–read
+  framework developed here does not apply to such algorithms, and the lower bound
+  in SubsetSum_DecisionTree does not constrain them.
+
+  This is entirely intended: the theory concerns only those solvers whose
+  information-flow structure is captured by the LR–read axioms.
 ›
 
 text ‹
@@ -261,14 +270,18 @@ subsection ‹Configuration agreement and unread positions›
 text ‹
   Two configurations agree except possibly at position i on tape 0.
 
-  This is a convenient concept if one wants to reason about how a single
-  unread bit on the input tape can be flipped without affecting the
-  rest of the machine's behaviour.
+  This notion is useful for reasoning about how changing a single unread
+  bit on the input tape affects the behaviour of a Turing machine.  In many
+  adversary arguments, one shows that if the read-head never moves to
+  position i, then flipping the bit at i should not change the machine’s
+  execution.
 
-  In this theory we will *not* prove a general unread-flip lemma for all
-  Cook–Levin machines; instead, we package the desired unread-agreement
-  property as locale axioms for the particular machines we care about
-  (see below).
+  In the present development we do *not* attempt to prove such a general
+  “unread-flip” lemma for arbitrary Cook–Levin machines.  Instead, the
+  specific unread-agreement properties needed for our LR–read framework are
+  introduced directly as locale assumptions for the particular classes of
+  machines we analyse (see below).  This keeps the theory modular while
+  avoiding unnecessary generality.
 ›
 
 definition configs_agree_except_at :: "nat ⇒ config ⇒ config ⇒ bool" where
@@ -312,7 +325,6 @@ lemma head0_bounded:
   unfolding head0_CL_def conf_CL_def
   by simp
 
-
 subsection ‹Unread-agreement property as a locale axiom›
 
 text ‹
@@ -351,7 +363,6 @@ definition subset_sum_true :: "int list ⇒ int ⇒ bool" where
   "subset_sum_true as s ⟷
      (∃xs ∈ bitvec (length as).
         (∑ i<length as. as ! i * xs ! i) = s)"
-
 
 subsection ‹Certificate-based view of SUBSET-SUM›
 
@@ -403,7 +414,6 @@ next
     unfolding subset_sum_true_def
     using sum_eq by blast
 qed
-
 
 subsection ‹SUBSET-SUM is in NP (via an abstract verifier)›
 
