@@ -715,7 +715,6 @@ lemma read0_TM_subset:
 
 end  (* context CL_SubsetSum_Solver *)
 
-
 subsection ‹Equation-based read requirement›
 
 text ‹
