@@ -83,33 +83,6 @@ text ‹
   on the Cook–Levin side). The remaining gap to a full P ≠ NP statement is
   precisely the meta-assumption that every polynomial-time solver lies in the
   LR-read class.
-
-  ⟦ Remark on the Scope of the LR–read Assumption. ⟧
-  The LR–read model introduced in this theory is not meant to encompass all
-  algorithms for all variants of SUBSET-SUM.  For example, the linear-algebraic
-  version of the problem over the field 𝔽₂, with coefficients in 𝔽₂^m, admits
-  polynomial-time algorithms based on Gaussian elimination; such algorithms are
-  not LR–read.
-
-  The reason is structural.  The locale Eq_ReadLR_SubsetSum_Solver assumes that a
-  solver ultimately decides satisfiability by comparing the values of a *single*
-  equation
-
-      lhs as s = rhs as s,
-
-  whose left-hand and right-hand sides are encoded in two disjoint, stable
-  regions (“zones”) of the input.  The LR–read coverage property then requires that
-  on hard instances the solver must inspect at least one bit from each zone.
-
-  Gaussian elimination violates these assumptions: it manipulates a *system* of
-  equations, applies arbitrary invertible row operations that freely mix all
-  coordinates of the input, and has no meaningful decomposition into a left and a
-  right region whose bits must be consulted separately.  Consequently, the LR–read
-  framework developed here does not apply to such algorithms, and the lower bound
-  in SubsetSum_DecisionTree does not constrain them.
-
-  This is entirely intended: the theory concerns only those solvers whose
-  information-flow structure is captured by the LR–read axioms.
 ›
 
 text ‹
@@ -270,18 +243,18 @@ subsection ‹Configuration agreement and unread positions›
 text ‹
   Two configurations agree except possibly at position i on tape 0.
 
-  This notion is useful for reasoning about how changing a single unread
-  bit on the input tape affects the behaviour of a Turing machine.  In many
-  adversary arguments, one shows that if the read-head never moves to
-  position i, then flipping the bit at i should not change the machine’s
-  execution.
+  This notion is useful when analysing how a Turing machine reacts to
+  changes in a single *unread* input bit.  In many adversary-style lower
+  bounds one shows: if the machine never moves its head to position i,
+  then flipping the bit stored at position i cannot affect the machine’s
+  behaviour or final output.
 
-  In the present development we do *not* attempt to prove such a general
+  In this development we do *not* attempt to prove such a general
   “unread-flip” lemma for arbitrary Cook–Levin machines.  Instead, the
-  specific unread-agreement properties needed for our LR–read framework are
-  introduced directly as locale assumptions for the particular classes of
-  machines we analyse (see below).  This keeps the theory modular while
-  avoiding unnecessary generality.
+  specific unread-agreement properties required by the LR–read framework
+  are introduced directly as **locale assumptions** for the particular
+  classes of machines we study.  This keeps the formalisation modular and
+  avoids proving unnecessary results that would not be used elsewhere.
 ›
 
 definition configs_agree_except_at :: "nat ⇒ config ⇒ config ⇒ bool" where
@@ -897,12 +870,9 @@ text ‹
 
         steps_TM as s ≥ 2 * sqrt(2^n)
 
-  on all hard instances (via reinterpretation of SubsetSum_Lemma1).  It also
-  inherits the corollary that no polynomial upper bound on steps_TM can exist
-  over the powers-of-two family.
-
-  Thus LR_Read_TM is the formal point where the abstract lower bound is
-  transferred into the concrete Cook–Levin world.
+  on all hard instances (via reinterpretation of SubsetSum_Lemma1). Thus 
+  LR_Read_TM is the formal point where the abstract lower bound is transferred 
+  into the concrete Cook–Levin world.
 ›
 
 locale LR_Read_TM =
