@@ -26,8 +26,9 @@ text ‹
 
   for all hard instances (as,s) of length n = length as.
 
-  The aim of the present file is to transport this combinatorial result into
-  the Cook–Levin world:
+  The aim of the present file is to transport this combinatorial result,
+  already proved abstractly in SubsetSum_DecisionTree, into the Cook–Levin world:
+
 
     • we define a step-count steps_CL and an acceptance predicate
       accepts_CL for Cook–Levin machines;
@@ -705,6 +706,13 @@ proof
     using cpos bound steps_TM_def by auto
   with no_polytime_TM_on_distinct_family show False by blast
 qed
+
+text ‹
+  Note that the impossibility result is stated only for the subfamily of
+  instances with distinct subset sums; it does not by itself rule out the
+  possibility that M is polynomial-time on arbitrary (possibly non-hard)
+  instances.
+›
 
 end  (* locale LR_Read_TM *)
 
