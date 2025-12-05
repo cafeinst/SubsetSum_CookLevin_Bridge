@@ -206,7 +206,6 @@ text ‹
   ‹steps_TM› and ‹read0_TM›.
 ›
 
-
 subsection ‹Which input bits does a Cook–Levin machine read?›
 
 text ‹
