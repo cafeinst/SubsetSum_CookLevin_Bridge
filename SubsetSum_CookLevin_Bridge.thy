@@ -9,9 +9,9 @@ section ‹Cook–Levin bridge for the subset-sum lower bound›
 text ‹
 This theory connects the abstract decision-tree lower bound of
 ‹SubsetSum_DecisionTree› with the concrete operational semantics of
-Cook–Levin Turing machines.  The objective is structural: to express, within
-the Cook–Levin framework, the same per-candidate informational burden that
-drives the abstract √(2ⁿ) bound.
+Turing machines, as defined in the AFP Cook_Levin library. The objective 
+is structural: to express, within the Cook–Levin framework, the same 
+per-candidate informational burden that drives the abstract √(2ⁿ) bound.
 
 The development proceeds in several layers:
 
@@ -38,8 +38,7 @@ The development proceeds in several layers:
 
 This theory makes no complexity-theoretic conclusions on its own; it provides
 the interface connecting the reader model to the Cook–Levin semantics.
-The conditional separation P ≠ NP is established later, in
-‹SubsetSum_PneqNP›.
+The conditional separation P ≠ NP is established later, in ‹SubsetSum_PneqNP›.
 ›
 
 
