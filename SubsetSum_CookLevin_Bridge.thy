@@ -480,15 +480,6 @@ text ‹
     • ‹M› accepts exactly the encodings of true instances:
 
           accepts_CL M (enc as s) ⟷ subset_sum_true as s.
-
-  Inside the locale we define the specialised step-count and read-sets
-
-      steps_TM as s = steps_CL M (enc as s)
-      read0_TM as s = read0_CL M (enc as s).
-
-  These ‹_TM› versions are exactly what will be fed into the abstract
-  locale ‹SubsetSum_Lemma1› via ‹LR_Read_TM› to obtain the √(2ⁿ) lower
-  bound for this particular solver ‹M›.
 ›
 
 locale CL_SubsetSum_Solver =
@@ -500,8 +491,8 @@ locale CL_SubsetSum_Solver =
     "⋀as s. accepts_CL M (enc as s) ⟷ subset_sum_true as s"
 begin
 
-definition steps_TM :: "int list ⇒ int ⇒ nat" where
-  "steps_TM as s = steps_CL M (enc as s)"
+text ‹We will later relate the abstract cost ‹steps_TM› to the concrete
+Cook–Levin step count ‹steps_CL M (enc as s)› in the LR-read locale.›
 
 definition read0_TM :: "int list ⇒ int ⇒ nat set" where
   "read0_TM as s = read0_CL M (enc as s)"
@@ -570,41 +561,43 @@ text ‹
 
 locale LR_Read_TM =
   CL_SubsetSum_Solver M q0 enc
-  for M :: machine and q0 :: nat
-      and enc :: "int list ⇒ int ⇒ bool list" +
-  fixes seenL_TM :: "int list ⇒ int ⇒ nat ⇒ int set"
+  for M   :: machine
+    and q0 :: nat
+    and enc :: "int list ⇒ int ⇒ bool list" +
+  fixes steps_TM :: "int list ⇒ int ⇒ nat"
+    and seenL_TM :: "int list ⇒ int ⇒ nat ⇒ int set"
     and seenR_TM :: "int list ⇒ int ⇒ nat ⇒ int set"
-  assumes coverage_TM:
+  assumes steps_TM_CL:
+    "⋀as s. steps_TM as s = steps_CL M (enc as s)"
+  assumes LR_read_coverage:
     "⋀as s. distinct_subset_sums as ⟹
        ∃k≤length as.
          seenL_TM as s k = LHS (e_k as s k) (length as) ∧
          seenR_TM as s k = RHS (e_k as s k) (length as)"
-  assumes steps_lb_TM:
-    "⋀as s k. steps_TM as s ≥
-                card (seenL_TM as s k) + card (seenR_TM as s k)"
+  assumes LR_read_cost:
+    "⋀as s k. k ≤ length as ⟹
+       steps_TM as s ≥ card (seenL_TM as s k) + card (seenR_TM as s k)"
 begin
+
 
 text ‹
   We instantiate the abstract lower-bound locale ‹SubsetSum_Lemma1› with
   ‹steps_TM›, ‹seenL_TM› and ‹seenR_TM›.  All theorems of
   ‹SubsetSum_Lemma1› then become available under the prefix ‹Reader›.
-  This is the formal step where the equality assumptions to LHS/RHS and
-  the cost inequality are turned into a √(2ⁿ) bound on ‹steps_TM›.
 ›
 
 interpretation Reader:
   SubsetSum_Lemma1 steps_TM seenL_TM seenR_TM
 proof
   show "⋀as s. distinct_subset_sums as ⟹
-           ∃k≤length as.
-             seenL_TM as s k = LHS (e_k as s k) (length as) ∧
-             seenR_TM as s k = RHS (e_k as s k) (length as)"
-    by (rule coverage_TM)
+            ∃k≤length as.
+              seenL_TM as s k = LHS (e_k as s k) (length as) ∧
+              seenR_TM as s k = RHS (e_k as s k) (length as)"
+    using LR_read_coverage by blast
 next
-  show "⋀as s k.
-           steps_TM as s ≥
-             card (seenL_TM as s k) + card (seenR_TM as s k)"
-    by (rule steps_lb_TM)
+  show "⋀as s k. k ≤ length as ⟹
+            steps_TM as s ≥ card (seenL_TM as s k) + card (seenR_TM as s k)"
+    using LR_read_cost by blast
 qed
 
 text ‹
@@ -629,7 +622,7 @@ proof -
   have lb: "2 * sqrt ((2::real) ^ n) ≤ real (steps_TM as s)"
     using subset_sum_sqrt_lower_bound_TM[OF n_def distinct] .
   have "steps_TM as s = steps_CL M (enc as s)"
-    by (simp add: steps_TM_def)
+    by (simp add: steps_TM_CL)
   hence "real (steps_TM as s) = real (steps_CL M (enc as s))"
     by simp
   from lb this show ?thesis
@@ -757,16 +750,34 @@ proof
            ≤ nat (ceiling (c * (real (length as)) ^ d))"
   then obtain c d where
     cpos: "c > 0" and
-    bound: "∀as s. distinct_subset_sums as ⟶
-                    steps_CL M (enc as s)
-                      ≤ nat (ceiling (c * (real (length as)) ^ d))"
+    bound_CL: "∀as s. distinct_subset_sums as ⟶
+                      steps_CL M (enc as s)
+                        ≤ nat (ceiling (c * (real (length as)) ^ d))"
     by blast
+
+  (* Transfer the polynomial bound from steps_CL to steps_TM using steps_TM_CL. *)
+  have bound_TM:
+    "∀as s. distinct_subset_sums as ⟶
+       steps_TM as s ≤ nat (ceiling (c * (real (length as)) ^ d))"
+  proof (intro allI impI)
+    fix as s
+    assume "distinct_subset_sums as"
+    then have "steps_CL M (enc as s)
+                 ≤ nat (ceiling (c * (real (length as)) ^ d))"
+      using bound_CL by simp
+    moreover have "steps_TM as s = steps_CL M (enc as s)"
+      by (simp add: steps_TM_CL)
+    ultimately show "steps_TM as s
+                       ≤ nat (ceiling (c * (real (length as)) ^ d))"
+      by simp
+  qed
 
   have "∃(c::real)>0. ∃(d::nat).
           ∀as s. distinct_subset_sums as ⟶
             steps_TM as s ≤ nat (ceiling (c * (real (length as)) ^ d))"
-    using cpos bound steps_TM_def by auto
-  with no_polytime_TM_on_distinct_family show False by blast
+    using cpos bound_TM by blast
+  with no_polytime_TM_on_distinct_family show False
+    by blast
 qed
 
 end  (* locale LR_Read_TM *)
