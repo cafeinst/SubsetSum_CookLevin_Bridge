@@ -589,16 +589,22 @@ text ‹
 interpretation Reader:
   SubsetSum_Lemma1 steps_TM seenL_TM seenR_TM
 proof
-  show "⋀as s. distinct_subset_sums as ⟹
-            ∃k≤length as.
-              seenL_TM as s k = LHS (e_k as s k) (length as) ∧
-              seenR_TM as s k = RHS (e_k as s k) (length as)"
-    using LR_read_coverage by blast
-next
-  show "⋀as s k. k ≤ length as ⟹
-            steps_TM as s ≥ card (seenL_TM as s k) + card (seenR_TM as s k)"
-    using LR_read_cost by blast
+  fix as s
+  assume dist: "distinct_subset_sums as"
+  obtain k where
+    k_le: "k ≤ length as"
+    and covL: "seenL_TM as s k = LHS (e_k as s k) (length as)"
+    and covR: "seenR_TM as s k = RHS (e_k as s k) (length as)"
+    using LR_read_coverage[OF dist] by blast
+  have step_ge: "steps_TM as s ≥ card (seenL_TM as s k) + card (seenR_TM as s k)"
+    using LR_read_cost[OF k_le] .
+  show "∃k≤length as.
+          seenL_TM as s k = LHS (e_k as s k) (length as) ∧
+          seenR_TM as s k = RHS (e_k as s k) (length as) ∧
+          steps_TM as s ≥ card (seenL_TM as s k) + card (seenR_TM as s k)"
+    using k_le covL covR step_ge by blast
 qed
+
 
 text ‹
   Specialising ‹Reader.subset_sum_sqrt_lower_bound› yields the concrete
@@ -611,7 +617,7 @@ theorem subset_sum_sqrt_lower_bound_TM:
   assumes n_def: "n = length as"
       and distinct: "distinct_subset_sums as"
   shows "2 * sqrt ((2::real) ^ n) ≤ real (steps_TM as s)"
-  using Reader.subset_sum_sqrt_lower_bound[OF n_def distinct]
+  using Reader.subset_sum_sqrt_lower_bound[OF distinct n_def]
   by simp
 
 corollary subset_sum_sqrt_lower_bound_CL:
