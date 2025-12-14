@@ -9,15 +9,16 @@ section ‹Cook–Levin bridge for the subset-sum lower bound›
 text ‹
 This theory connects the abstract decision-tree lower bound of
 ‹SubsetSum_DecisionTree› with the concrete operational semantics of
-Turing machines, as defined in the AFP Cook_Levin library. The objective 
-is structural: to express, within the Cook–Levin framework, the same 
-per-candidate informational burden that drives the abstract √(2ⁿ) bound.
+Turing machines, as defined in the AFP Cook_Levin library. The objective is 
+structural: to state, within the Cook–Levin framework, an explicit LR-read 
+interface that exposes the same per-candidate informational structure required 
+by the abstract √(2ⁿ) lower bound.
 
 The development proceeds in several layers:
 
-  • We define a time measure ‹steps_CL› and an acceptance predicate
-    ‹accepts_CL› for Cook–Levin machines on Boolean inputs (written onto 
-    tape 0 via ‹bool_to_symbols›).
+  • We define a time measure ‹steps_CL› and acceptance predicates
+    ‹accepts_CL› / ‹accepts_CL_halt› for Cook–Levin machines on Boolean inputs 
+    (written onto tape 0 via ‹bool_to_symbols›).
 
   • Using these, we formalise SUBSET–SUM as a language in the Cook–Levin sense,
     and we give a verifier-based proof that SUBSET–SUM lies in ‹𝒩𝒫› for any
@@ -30,16 +31,18 @@ The development proceeds in several layers:
           steps_TM as s = steps_CL M (enc as s),
           read0_TM as s = read0_CL M (enc as s),
 
-    which serve as the concrete time and read measures.
+    which specialise the CL-level notions to SUBSET–SUM instances and serve as the 
+    concrete time/read measures for the later lower-bound transfer.
 
   • Finally, the locale ‹LR_Read_TM› states the assumptions needed to align the
     observable behaviour of ‹M› with the canonical candidate sets used in the
     abstract lower bound.  Once these conditions are assumed, the abstract
     √(2ⁿ) bound transfers directly to ‹steps_TM› and hence to ‹steps_CL M›.
 
-This theory makes no complexity-theoretic conclusions on its own; it provides
-the interface connecting the reader model to the Cook–Levin semantics.
-The conditional separation P ≠ NP is established later, in ‹SubsetSum_PneqNP›.
+This theory does not, by itself, separate complexity classes. It only provides 
+the Cook–Levin-side definitions and the LR-read interface needed to import the 
+abstract decision-tree lower bound. The conditional separation P ≠ NP is 
+established later, in ‹SubsetSum_PneqNP›.
 ›
 
 
@@ -144,8 +147,8 @@ definition k_tapes :: nat where
 subsection ‹Cook–Levin step-count and acceptance›
 
 text ‹
-  We define a simple halting-time function ‹steps_CL› and an acceptance
-  predicate ‹accepts_CL› for Cook–Levin machines:
+  We define a simple halting-time function ‹steps_CL› and acceptance predicates
+  ‹accepts_CL› and ‹accepts_CL_halt› for Cook–Levin machines:
 
     • ‹steps_CL M x› is the least step t where the control state index
       is at least ‹length M› (the halting convention of ‹Cook_Levin.NP›);
@@ -201,9 +204,9 @@ definition accept_symbol :: nat where
   "accept_symbol = 3"
 
 text ‹
-  We treat tape 1 as a single-cell output tape.  At halting time, the
-  symbol under the head on tape 1 represents the machine’s Boolean
-  output: the symbol 3 denotes “true” (accept), while 2 denotes “false”.
+  We interpret the symbol under the head on tape 1 at halting time as the
+  machine’s 1-bit Boolean output: symbol 3 denotes “true” (accept), while
+  symbol 2 denotes “false”.
 ›
 
 lemma accept_symbol_is_bit1 [simp]:
@@ -605,8 +608,9 @@ end  (* context CL_SubsetSum_Solver *)
 section ‹LR-read TM interface and lower bound inheritance›
 
 text ‹
-  We now introduce the Cook–Levin side LR-read interface and import the
-  abstract lower bound from ‹SubsetSum_Reader_Model›.
+  We now introduce the Cook–Levin side LR-read interface and import the 
+  abstract lower bound via ‹SubsetSum_Reader_Model› (from 
+  ‹SubsetSum_DecisionTree›).
 
   A Cook–Levin machine is considered polynomial-time on SUBSET-SUM if its
   step-count on an instance (as,s) is bounded by some polynomial in
@@ -631,6 +635,8 @@ text ‹
   decision-tree model.  We do not claim robustness under alternative
   encodings or under bit-length measures; this theory only provides a
   bridge between the LR-read model and Cook–Levin execution semantics.
+  This is a modelling choice for the bridge, not a claim about standard
+  bit-complexity for SUBSET–SUM.
 ›
 
 text ‹
@@ -651,14 +657,17 @@ text ‹
           seenL_TM as s k = LHS (e_k as s k) (length as)
           seenR_TM as s k = RHS (e_k as s k) (length as)
 
-      for some k ≤ length as on each such instance.  This is the strong
-      LR-read requirement: at the critical split ‹k›, the machine’s
-      information flow covers exactly the LHS/RHS families that drive
-      the decision-tree lower bound, not merely a subset of them. This is 
-      a strong hypothesis, expressed as set equalities rather than
-      inclusions, chosen so that the abstract decision-tree lower bound
-      transfers without loss to the Cook–Levin setting.
+      for some k ≤ length as on each such instance. These equalities are the
+      core LR-read assumption: they assert that the machine’s observable
+      information, at some split k, covers exactly the canonical LHS/RHS
+      candidate families.
 
+      This is the strong LR-read requirement: at the critical split ‹k›, the
+      machine’s information flow covers exactly the LHS/RHS families that drive
+      the decision-tree lower bound, not merely a subset of them. This is a
+      strong hypothesis, expressed as set equalities rather than inclusions,
+      chosen so that the abstract decision-tree lower bound transfers without
+      loss to the Cook–Levin setting.
 
     • for all as, s, k, the step-count is bounded below by
 
