@@ -606,7 +606,7 @@ section ‹LR-read TM interface and lower bound inheritance›
 
 text ‹
   We now introduce the Cook–Levin side LR-read interface and import the
-  abstract lower bound from ‹SubsetSum_Lemma1›.
+  abstract lower bound from ‹SubsetSum_Reader_Model›.
 
   A Cook–Levin machine is considered polynomial-time on SUBSET-SUM if its
   step-count on an instance (as,s) is bounded by some polynomial in
@@ -634,7 +634,7 @@ text ‹
 ›
 
 text ‹
-  The locale ‹LR_Read_TM› is the Cook–Levin analogue of ‹SubsetSum_Lemma1›.
+  The locale ‹LR_Read_TM› is the Cook–Levin analogue of ‹SubsetSum_Reader_Model›.
   It assumes that:
 
     • ‹M, q0, enc› form a SUBSET-SUM solver in the sense of
@@ -666,7 +666,7 @@ text ‹
 
   These conditions are assumptions about the machine’s information flow; they
   are not derived from the Cook–Levin semantics alone. They match the abstract 
-  axioms of ‹SubsetSum_Lemma1› with ‹steps = steps_TM› and ‹seenL = seenL_TM›, 
+  axioms of ‹SubsetSum_Reader_Model› with ‹steps = steps_TM› and ‹seenL = seenL_TM›, 
   ‹seenR = seenR_TM›.  Once the interpretation succeeds, we obtain the √(2ⁿ) 
   lower bound specialised to the Cook–Levin step-count of ‹M›, and in 
   particular the impossibility of a single polynomial upper bound on all 
@@ -695,13 +695,13 @@ begin
 
 
 text ‹
-  We instantiate the abstract lower-bound locale ‹SubsetSum_Lemma1› with
+  We instantiate the abstract lower-bound locale ‹SubsetSum_Reader_Model› with
   ‹steps_TM›, ‹seenL_TM› and ‹seenR_TM›.  All theorems of
-  ‹SubsetSum_Lemma1› then become available under the prefix ‹Reader›.
+  ‹SubsetSum_Reader_Model› then become available under the prefix ‹Reader›.
 ›
 
 interpretation Reader:
-  SubsetSum_Lemma1 steps_TM seenL_TM seenR_TM
+  SubsetSum_Reader_Model steps_TM seenL_TM seenR_TM
 proof
   fix as s
   assume dist: "distinct_subset_sums as"
@@ -722,7 +722,7 @@ qed
 
 text ‹
   From this point on, all lower-bound statements are inherited from
-  ‹SubsetSum_Lemma1› and applied to the Cook–Levin-specialised measures.
+  ‹SubsetSum_Reader_Model› and applied to the Cook–Levin-specialised measures.
 
   Specialising ‹Reader.subset_sum_sqrt_lower_bound› yields the concrete
   lower bound for ‹steps_TM›.  This is the TM-level version of the
@@ -769,7 +769,7 @@ text ‹
       *all* distinct-subset-sums inputs simultaneously.
 
   This is exactly the quantitative content imported from
-  ‹SubsetSum_DecisionTree› via ‹SubsetSum_Lemma1› and the LR-read axioms.
+  ‹SubsetSum_DecisionTree› via ‹SubsetSum_Reader_Model› and the LR-read axioms.
 ›
 theorem no_polytime_TM_on_distinct_family:
   shows "¬ (∃(c::real)>0. ∃(d::nat).
