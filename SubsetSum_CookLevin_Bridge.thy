@@ -16,7 +16,8 @@ per-candidate informational burden that drives the abstract √(2ⁿ) bound.
 The development proceeds in several layers:
 
   • We define a time measure ‹steps_CL› and an acceptance predicate
-    ‹accepts_CL› for Cook–Levin machines on Boolean inputs.
+    ‹accepts_CL› for Cook–Levin machines on Boolean inputs (written onto 
+    tape 0 via ‹bool_to_symbols›).
 
   • Using these, we formalise SUBSET–SUM as a language in the Cook–Levin sense,
     and we give a verifier-based proof that SUBSET–SUM lies in ‹𝒩𝒫› for any
@@ -44,8 +45,8 @@ The conditional separation P ≠ NP is established later, in ‹SubsetSum_PneqNP
 
 text ‹
   As a preparatory step, we state an elementary analytic fact in the exact
-  numerical form needed later: ceiling-bounded polynomials are eventually
-  dominated by the function n ↦ 2 * sqrt (2^n).
+  numerical form needed later: ceiling-bounded polynomials are eventually 
+  strictly dominated by the function n ↦ 2 * sqrt (2^n).
 ›
 lemma exp_beats_poly_ceiling_strict_TM:
   fixes c :: real and d :: nat
@@ -103,10 +104,10 @@ text ‹
   The lower-bound argument itself does not depend on any special hardness
   of powers of 2; it only uses the abstract assumption that for each n
   there exist lists ‹as› of length n with ‹distinct_subset_sums as›, as
-  captured by ‹exists_hard_TM›.
+  captured by ‹exists_distinct_family_TM›.
 ›
 
-lemma exists_hard_TM:
+lemma exists_distinct_family_TM:
   "∀n. ∃as. length as = n ∧ distinct_subset_sums as"
 proof
   fix n :: nat
@@ -152,11 +153,16 @@ text ‹
     • ‹conf_CL M x t› is the configuration after t steps on input x;
 
     • ‹accepts_CL M x› says that at time ‹steps_CL M x›, the symbol under
-      the head on tape 1 is 3, i.e. the machine outputs “1”.
+      the head on tape 1 is 3, i.e. the output tape contains the ‘1’ symbol 
+      (3) under its head at halting time.
 
   These are purely “CL-level” notions: they talk about an arbitrary machine
   ‹M› run on an arbitrary Boolean string ‹x :: bool list›, with no reference
-  yet to SUBSET-SUM or any specific encoding.
+  yet to SUBSET-SUM or any specific encoding. These notions are intended for 
+  machines that halt on the relevant inputs. In this development, halting is 
+  supplied implicitly by the solver/time assumptions introduced later 
+  (e.g. via an explicit halting assumption, or via a polynomial time-bound 
+  hypothesis).
 ›
 
 definition steps_CL :: "machine ⇒ bool list ⇒ nat" where
@@ -167,14 +173,94 @@ definition steps_CL :: "machine ⇒ bool list ⇒ nat" where
 definition conf_CL :: "machine ⇒ bool list ⇒ nat ⇒ config" where
   "conf_CL M x t = execute M (start_config k_tapes (bool_to_symbols x)) t"
 
-definition head0_CL :: "config ⇒ int" where
-  "head0_CL cfg = int (cfg <#> 0)"
+definition halts_CL :: "machine ⇒ bool list ⇒ bool" where
+  "halts_CL M x ⟷ (∃t. fst (conf_CL M x t) ≥ length M)"
 
-definition accepts_CL :: "machine ⇒ bool list ⇒ bool" where
-  "accepts_CL M x =
+lemma halts_CL_iff [simp]:
+  "halts_CL M x ⟷ (∃t. fst (conf_CL M x t) ≥ length M)"
+  by (simp add: halts_CL_def)
+
+lemma steps_CL_halting:
+  assumes halt: "halts_CL M x"
+  shows "fst (conf_CL M x (steps_CL M x)) ≥ length M"
+  using halt
+  unfolding halts_CL_def steps_CL_def conf_CL_def
+  by (rule LeastI_ex)
+
+lemma steps_CL_minimal:
+  assumes ht: "fst (conf_CL M x t) ≥ length M"
+  shows "steps_CL M x ≤ t"
+  using ht
+  unfolding steps_CL_def conf_CL_def
+  by (rule Least_le)
+
+definition head0_CL :: "config ⇒ int" where
+  "head0_CL cfg = (cfg <#> 0)"
+
+definition accept_symbol :: nat where
+  "accept_symbol = 3"
+
+text ‹
+  We treat tape 1 as a single-cell output tape.  At halting time, the
+  symbol under the head on tape 1 represents the machine’s Boolean
+  output: the symbol 3 denotes “true” (accept), while 2 denotes “false”.
+›
+
+lemma accept_symbol_is_bit1 [simp]:
+  "accept_symbol = (if True then 3 else 2)"
+  by (simp add: accept_symbol_def)
+
+definition output_CL :: "machine ⇒ bool list ⇒ nat list" where
+  "output_CL M x =
      (let t   = steps_CL M x;
           cfg = conf_CL M x t
-      in (cfg <:> 1) (cfg <#> 1) = 3)"
+      in [ (cfg <:> 1) (cfg <#> 1) ])"
+
+definition accepts_CL :: "machine ⇒ bool list ⇒ bool" where
+  "accepts_CL M x ⟷ output_CL M x = [accept_symbol]"
+
+lemma conf_CL_at_steps [simp]:
+  "conf_CL M x (steps_CL M x) =
+     execute M (start_config k_tapes (bool_to_symbols x)) (steps_CL M x)"
+  by (simp add: conf_CL_def)
+
+lemma singleton_list_eq_eq [simp]:
+  "([a] = [b]) = (a = b)"
+  by simp
+
+lemma accepts_CL_iff_symbol_at_output_head:
+  "accepts_CL M x =
+     (let t = steps_CL M x; cfg = conf_CL M x t
+      in |.| (cfg <!> 1) = accept_symbol)"
+  unfolding accepts_CL_def output_CL_def
+  by (metis list.inject)
+
+lemma accepts_CL_iff_symbol_at_output_head_iff [simp]:
+  "accepts_CL M x ⟷
+     (let t = steps_CL M x; cfg = conf_CL M x t
+      in |.| (cfg <!> 1) = accept_symbol)"
+  using accepts_CL_iff_symbol_at_output_head by simp
+
+definition accepts_CL_halt :: "machine ⇒ bool list ⇒ bool" where
+  "accepts_CL_halt M x ⟷ halts_CL M x ∧ accepts_CL M x"
+
+lemma accepts_CL_haltD1:
+  "accepts_CL_halt M x ⟹ halts_CL M x"
+  by (simp add: accepts_CL_halt_def)
+
+lemma accepts_CL_haltD2:
+  "accepts_CL_halt M x ⟹ accepts_CL M x"
+  by (simp add: accepts_CL_halt_def)
+
+text ‹
+  The predicate ‹accepts_CL_halt› is the notion of *correct acceptance*
+  used when stating solver correctness.  It ensures that acceptance is
+  only asserted for computations that actually halt, avoiding any
+  ambiguity arising from partial or nonterminating executions.
+
+  In particular, all solver correctness assumptions below are phrased
+  in terms of ‹accepts_CL_halt› rather than ‹accepts_CL› alone.
+›
 
 text ‹
   We will reason about Cook–Levin machines mainly via ‹steps_CL› and
@@ -200,15 +286,22 @@ text ‹
 
 definition read0_CL :: "machine ⇒ bool list ⇒ nat set" where
   "read0_CL M x =
-     { nat (head0_CL (conf_CL M x t)) | t.
-        t < steps_CL M x ∧
-        0 ≤ head0_CL (conf_CL M x t) ∧
-        nat (head0_CL (conf_CL M x t)) < length x }"
+     { nat h | t h.
+        let cfg = conf_CL M x t in
+        h = head0_CL cfg ∧
+        t < steps_CL M x ∧ 0 ≤ h ∧ nat h < length x }"
+text ‹
+  Here the index set is expressed in terms of the Boolean input length.
+  Since ‹bool_to_symbols› is length-preserving, this agrees with the
+  corresponding tape-0 symbol positions.
+›
+lemma length_bool_to_symbols[simp]:
+  "length (bool_to_symbols bs) = length bs"
+  by (simp add: bool_to_symbols_def)
 
 lemma read0_CL_subset_indices:
   "read0_CL M x ⊆ {..<length x}"
   unfolding read0_CL_def by auto
-
 
 subsection ‹The mathematical SUBSET-SUM predicate›
 
@@ -480,6 +573,10 @@ text ‹
     • ‹M› accepts exactly the encodings of true instances:
 
           accepts_CL M (enc as s) ⟷ subset_sum_true as s.
+
+  The parameter ‹q0› is kept to match the Cook–Levin library’s
+  well-formedness predicate ‹turing_machine k_tapes q0 M›; the execution
+  semantics used below start from ‹start_config›.
 ›
 
 locale CL_SubsetSum_Solver =
@@ -488,7 +585,7 @@ locale CL_SubsetSum_Solver =
     and enc :: "int list ⇒ int ⇒ bool list"
   assumes turing: "turing_machine k_tapes q0 M"
   assumes solves_subset_sum:
-    "⋀as s. accepts_CL M (enc as s) ⟷ subset_sum_true as s"
+    "⋀as s. accepts_CL_halt M (enc as s) ⟷ subset_sum_true as s"
 begin
 
 text ‹We will later relate the abstract cost ‹steps_TM› to the concrete
@@ -514,7 +611,12 @@ text ‹
   A Cook–Levin machine is considered polynomial-time on SUBSET-SUM if its
   step-count on an instance (as,s) is bounded by some polynomial in
   ‹length as› (we take ‹length as› as the size parameter and ignore the
-  bit-length of ‹enc as s› here).  This is captured by:
+  bit-length of ‹enc as s› here). This choice of size parameter is 
+  deliberate: it aligns the Cook–Levin semantics with the abstract 
+  decision-tree model used in ‹SubsetSum_DecisionTree›, and is not meant 
+  to claim robustness under all encodings. In particular, this file does 
+  not attempt to relate ‹length (enc as s)› to the bit-length of the 
+  integers in ‹as›. This is captured by:
 ›
 
 definition polytime_CL_machine
@@ -524,6 +626,12 @@ where
      (∃(c::real)>0. ∃(d::nat).
         ∀as s. steps_CL M (enc as s)
                ≤ nat (ceiling (c * (real (length as)) ^ d)))"
+text ‹
+  The size parameter used here is ‹length as›, matching the abstract
+  decision-tree model.  We do not claim robustness under alternative
+  encodings or under bit-length measures; this theory only provides a
+  bridge between the LR-read model and Cook–Levin execution semantics.
+›
 
 text ‹
   The locale ‹LR_Read_TM› is the Cook–Levin analogue of ‹SubsetSum_Lemma1›.
@@ -532,7 +640,7 @@ text ‹
     • ‹M, q0, enc› form a SUBSET-SUM solver in the sense of
       ‹CL_SubsetSum_Solver›;
 
-    • for each hard instance (as,s) with distinct subset sums there exists
+    • for each instance (as,s) with distinct subset sums there exists
       a split index k at which the abstract “seen” sets ‹seenL_TM› and
       ‹seenR_TM› coincide with the canonical sets
       ‹LHS (e_k as s k) (length as)› and
@@ -543,20 +651,26 @@ text ‹
           seenL_TM as s k = LHS (e_k as s k) (length as)
           seenR_TM as s k = RHS (e_k as s k) (length as)
 
-      for some k ≤ length as on each hard instance.  This is the strong
+      for some k ≤ length as on each such instance.  This is the strong
       LR-read requirement: at the critical split ‹k›, the machine’s
       information flow covers exactly the LHS/RHS families that drive
-      the decision-tree lower bound, not merely a subset of them.
+      the decision-tree lower bound, not merely a subset of them. This is 
+      a strong hypothesis, expressed as set equalities rather than
+      inclusions, chosen so that the abstract decision-tree lower bound
+      transfers without loss to the Cook–Levin setting.
+
 
     • for all as, s, k, the step-count is bounded below by
 
           steps_TM as s ≥ card (seenL_TM as s k) + card (seenR_TM as s k).
 
-  These assumptions match the abstract axioms of ‹SubsetSum_Lemma1› with
-  ‹steps = steps_TM› and ‹seenL = seenL_TM›, ‹seenR = seenR_TM›.  Once the
-  interpretation succeeds, we obtain the √(2ⁿ) lower bound specialised to
-  the Cook–Levin step-count of ‹M›, and in particular the impossibility of
-  a single polynomial upper bound on all distinct-subset-sums instances.
+  These conditions are assumptions about the machine’s information flow; they
+  are not derived from the Cook–Levin semantics alone. They match the abstract 
+  axioms of ‹SubsetSum_Lemma1› with ‹steps = steps_TM› and ‹seenL = seenL_TM›, 
+  ‹seenR = seenR_TM›.  Once the interpretation succeeds, we obtain the √(2ⁿ) 
+  lower bound specialised to the Cook–Levin step-count of ‹M›, and in 
+  particular the impossibility of a single polynomial upper bound on all 
+  distinct-subset-sums instances.
 ›
 
 locale LR_Read_TM =
@@ -607,6 +721,9 @@ qed
 
 
 text ‹
+  From this point on, all lower-bound statements are inherited from
+  ‹SubsetSum_Lemma1› and applied to the Cook–Levin-specialised measures.
+
   Specialising ‹Reader.subset_sum_sqrt_lower_bound› yields the concrete
   lower bound for ‹steps_TM›.  This is the TM-level version of the
   √(2ⁿ) decision-tree bound.
@@ -637,10 +754,10 @@ qed
 
 text ‹
   We now show that no machine satisfying the LR-read assumptions can have
-  its step-count bounded by a single polynomial on all hard instances
-  with distinct subset sums.  The proof combines the analytic lemma
-  ‹exp_beats_poly_ceiling_strict_TM› with the √(2ⁿ) lower bound and the
-  hard family from ‹exists_hard_TM›.
+  its step-count bounded by a single polynomial on all instances with distinct 
+  subset sums. The proof combines the analytic lemma
+   ‹exp_beats_poly_ceiling_strict_TM› with the √(2ⁿ) lower bound and the
+  distinct-subset-sums family from ‹exists_distinct_family_TM›.
 
   Note carefully the scope of this impossibility result:
 
@@ -678,8 +795,8 @@ proof
 
   have N_ge: "N ≥ N" by simp
 
-  (* Choose a hard instance of length N. *)
-  from exists_hard_TM
+  (* Choose a distinct-subset-sums instance of length N. *)
+  from exists_distinct_family_TM
   obtain as where len_as: "length as = N"
     and dist_as: "distinct_subset_sums as"
     by blast
