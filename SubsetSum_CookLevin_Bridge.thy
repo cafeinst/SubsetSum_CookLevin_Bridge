@@ -9,10 +9,11 @@ section ‹Cook–Levin bridge for the subset-sum lower bound›
 text ‹
 This theory connects the abstract decision-tree lower bound of
 ‹SubsetSum_DecisionTree› with the concrete operational semantics of
-Turing machines, as defined in the AFP Cook_Levin library. The objective is 
-structural: to state, within the Cook–Levin framework, an explicit LR-read 
-interface that exposes the same per-candidate informational structure required 
-by the abstract √(2ⁿ) lower bound.
+Turing machines, as defined in the AFP Cook_Levin library. The objective is
+structural: to state, within the Cook–Levin framework, an explicit
+information-flow interface—formalised below as LR-read—that exposes the same
+per-candidate informational structure required by the abstract
+√(2ⁿ) lower bound.
 
 The development proceeds in several layers:
 
@@ -44,7 +45,6 @@ the Cook–Levin-side definitions and the LR-read interface needed to import the
 abstract decision-tree lower bound. The conditional separation P ≠ NP is 
 established later, in ‹SubsetSum_PneqNP›.
 ›
-
 
 text ‹
   As a preparatory step, we state an elementary analytic fact in the exact
