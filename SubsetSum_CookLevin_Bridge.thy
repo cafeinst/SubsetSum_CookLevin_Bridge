@@ -4,53 +4,64 @@ theory SubsetSum_CookLevin
     "SubsetSum_DecisionTree"
 begin
 
-section ‹Cook–Levin bridge for the subset-sum lower bound›
+section \<open>Cook--Levin bridge for the subset-sum lower bound\<close>
 
-text ‹
-This theory connects the abstract decision-tree lower bound of
-‹SubsetSum_DecisionTree› with the concrete operational semantics of
-Turing machines, as defined in the AFP Cook_Levin library. The objective is
-structural: to state, within the Cook–Levin framework, an explicit
-information-flow interface—formalised below as LR-read—that exposes the same
-per-candidate informational structure required by the abstract
-√(2ⁿ) lower bound.
+text \<open>
+This theory connects the abstract decision-tree lower bound developed in
+\<open>SubsetSum_DecisionTree\<close> with the concrete operational semantics of
+Turing machines, as defined in the AFP \emph{Cook\_Levin} library.
+
+The objective of this file is structural.  Within the Cook--Levin framework,
+we introduce an explicit information-flow interface, formalised below as
+\emph{LR-read}, that exposes the same per-candidate informational structure
+required by the abstract \(\sqrt{2^n}\) lower bound.
 
 The development proceeds in several layers:
 
-  • We define a time measure ‹steps_CL› and acceptance predicates
-    ‹accepts_CL› / ‹accepts_CL_halt› for Cook–Levin machines on Boolean inputs 
-    (written onto tape 0 via ‹bool_to_symbols›).
+\begin{itemize}
+\item We define a time measure \verb|steps_CL| together with acceptance
+      predicates \verb|accepts_CL| and \verb|accepts_CL_halt| for Cook--Levin
+      machines operating on Boolean inputs.  Inputs are written onto tape~0
+      using the encoding function \verb|bool_to_symbols|.
 
-  • Using these, we formalise SUBSET–SUM as a language in the Cook–Levin sense,
-    and we give a verifier-based proof that SUBSET–SUM lies in ‹𝒩𝒫› for any
-    reasonable instance encoding.
+\item Using these notions, we formalise SUBSET--SUM as a language in the
+      Cook--Levin sense and give a verifier-based proof that SUBSET--SUM lies
+      in \(\mathcal{NP}\) relative to any instance encoding \verb|enc0|
+      that admits a verifier in the sense of the locale \verb|SS_Verifier_NP|.
 
-  • We introduce a locale ‹CL_SubsetSum_Solver› for a Turing machine ‹M› and
-    encoding ‹enc› that together decide SUBSET–SUM correctly.  Inside this
-    locale we obtain the specialised notions
+\item We introduce a locale \verb|CL_SubsetSum_Solver| for a Turing machine
+      \verb|M| and encoding \verb|enc| that together decide SUBSET--SUM
+      correctly.  Inside this locale we obtain the specialised notions
+      \[
+        \verb|steps_TM as s| = \verb|steps_CL M (enc as s)|,
+        \qquad
+        \verb|read0_TM as s| = \verb|read0_CL M (enc as s)|,
+      \]
+      which specialise the Cook--Levin-level notions to SUBSET--SUM instances
+      and serve as the concrete time and read measures for the later transfer
+      of the lower bound.
 
-          steps_TM as s = steps_CL M (enc as s),
-          read0_TM as s = read0_CL M (enc as s),
+\item Finally, the locale \verb|LR_Read_TM| states the assumptions needed to
+      align the observable behaviour of \verb|M| with the canonical candidate
+      sets used in the abstract lower bound.  Once these assumptions are made,
+      the abstract \(\sqrt{2^n}\) bound transfers directly to
+      \verb|steps_TM| and hence to \verb|steps_CL M|.
+\end{itemize}
 
-    which specialise the CL-level notions to SUBSET–SUM instances and serve as the 
-    concrete time/read measures for the later lower-bound transfer.
+This theory does not, by itself, separate complexity classes.  It provides
+only the Cook--Levin-side definitions and the LR-read interface required to
+import the abstract decision-tree lower bound.  The conditional separation
+\(\mathcal{P} \neq \mathcal{NP}\) is established later, in
+\<open>SubsetSum_PneqNP\<close>.
+\<close>
 
-  • Finally, the locale ‹LR_Read_TM› states the assumptions needed to align the
-    observable behaviour of ‹M› with the canonical candidate sets used in the
-    abstract lower bound.  Once these conditions are assumed, the abstract
-    √(2ⁿ) bound transfers directly to ‹steps_TM› and hence to ‹steps_CL M›.
+text \<open>
+As a preparatory step, we state an elementary analytic fact in the precise
+numerical form needed later: polynomials bounded above by a ceiling function
+are eventually strictly dominated by the function
+\(n \mapsto 2 \cdot \sqrt{2^n}\).
+\<close>
 
-This theory does not, by itself, separate complexity classes. It only provides 
-the Cook–Levin-side definitions and the LR-read interface needed to import the 
-abstract decision-tree lower bound. The conditional separation P ≠ NP is 
-established later, in ‹SubsetSum_PneqNP›.
-›
-
-text ‹
-  As a preparatory step, we state an elementary analytic fact in the exact
-  numerical form needed later: ceiling-bounded polynomials are eventually 
-  strictly dominated by the function n ↦ 2 * sqrt (2^n).
-›
 lemma exp_beats_poly_ceiling_strict_TM:
   fixes c :: real and d :: nat
   assumes cpos: "c > 0"
@@ -98,17 +109,19 @@ qed
 lemma length_pow2_list[simp]: "length (pow2_list n) = n"
   by (simp add: pow2_list_def)
 
-text ‹
-  For each length n we fix a canonical example with distinct subset sums,
-  namely ‹pow2_list n›.  This family is convenient because for
-  ‹as = pow2_list n› all 2^n subset sums are different, so it witnesses the
-  existence of lists of length n with pairwise distinct subset sums.
+text \<open>
+For each length \verb|n| we fix a canonical example with distinct subset sums,
+namely \verb|pow2_list n|.  This family is convenient because for
+\verb|as = pow2_list n| all \(2^n\) subset sums are different, and thus it
+witnesses the existence of lists of length \verb|n| with pairwise distinct
+subset sums.
 
-  The lower-bound argument itself does not depend on any special hardness
-  of powers of 2; it only uses the abstract assumption that for each n
-  there exist lists ‹as› of length n with ‹distinct_subset_sums as›, as
-  captured by ‹exists_distinct_family_TM›.
-›
+The lower-bound argument itself does not depend on any special hardness
+property of powers of~\(2\).  It uses only the abstract assumption that for
+each \verb|n| there exist lists \verb|as| of length \verb|n| satisfying
+\verb|distinct_subset_sums as|.  This assumption is captured formally by the
+lemma \verb|exists_distinct_family_TM|.
+\<close>
 
 lemma exists_distinct_family_TM:
   "∀n. ∃as. length as = n ∧ distinct_subset_sums as"
@@ -122,18 +135,22 @@ proof
     by blast
 qed
 
-subsection ‹Basic encoding to Cook–Levin symbols›
+subsection \<open>Basic encoding to Cook--Levin symbols\<close>
 
-text ‹
-  We use the Cook–Levin tape alphabet:
+text \<open>
+We use the standard Cook--Levin tape alphabet with the following conventions:
 
-    • 0 = blank,
-    • 1 = start symbol,
-    • 2 = symbol for bit 0,
-    • 3 = symbol for bit 1.
+\begin{itemize}
+\item symbol \verb|0| represents the blank symbol;
+\item symbol \verb|1| represents the start symbol;
+\item symbol \verb|2| represents the Boolean value \verb|0|;
+\item symbol \verb|3| represents the Boolean value \verb|1|.
+\end{itemize}
 
-  An input bitstring is written as a row of 2/3 symbols on tape 0.
-›
+An input Boolean string is written on tape~0 as a sequence of symbols
+\verb|2| and \verb|3|, using the encoding defined by
+\verb|bool_to_symbols|.
+\<close>
 
 definition bool_to_symbols :: "bool list ⇒ symbol list" where
   "bool_to_symbols bs = map (λb. if b then 3 else 2) bs"
@@ -144,29 +161,38 @@ definition k_tapes :: nat where
   "k_tapes = 2"
 
 
-subsection ‹Cook–Levin step-count and acceptance›
+subsection \<open>Cook--Levin step count and acceptance\<close>
 
-text ‹
-  We define a simple halting-time function ‹steps_CL› and acceptance predicates
-  ‹accepts_CL› and ‹accepts_CL_halt› for Cook–Levin machines:
+text \<open>
+We define a simple halting-time function \verb|steps_CL| together with the
+acceptance predicates \verb|accepts_CL| and \verb|accepts_CL_halt| for
+Cook--Levin machines.
 
-    • ‹steps_CL M x› is the least step t where the control state index
-      is at least ‹length M› (the halting convention of ‹Cook_Levin.NP›);
+\begin{itemize}
+\item \verb|steps_CL M x| is defined as the least time step \verb|t| such that
+      the control-state index of the machine configuration is at least
+      \verb|length M|.  This matches the halting convention used in the
+      theory \<open>Cook_Levin.NP\<close>.
 
-    • ‹conf_CL M x t› is the configuration after t steps on input x;
+\item \verb|conf_CL M x t| denotes the configuration of machine \verb|M|
+      after \verb|t| execution steps on input \verb|x|.
 
-    • ‹accepts_CL M x› says that at time ‹steps_CL M x›, the symbol under
-      the head on tape 1 is 3, i.e. the output tape contains the ‘1’ symbol 
-      (3) under its head at halting time.
+\item \verb|accepts_CL M x| holds if, at time \verb|steps_CL M x|, the symbol
+      under the head on tape~1 is \verb|3|.  In other words, the output tape
+      contains the symbol representing Boolean~\verb|1| under its head at
+      halting time.
+\end{itemize}
 
-  These are purely “CL-level” notions: they talk about an arbitrary machine
-  ‹M› run on an arbitrary Boolean string ‹x :: bool list›, with no reference
-  yet to SUBSET-SUM or any specific encoding. These notions are intended for 
-  machines that halt on the relevant inputs. In this development, halting is 
-  supplied implicitly by the solver/time assumptions introduced later 
-  (e.g. via an explicit halting assumption, or via a polynomial time-bound 
-  hypothesis).
-›
+These are purely Cook--Levin--level notions.  They refer to an arbitrary
+machine \verb|M| run on an arbitrary Boolean string
+\verb|x :: bool list|, and make no reference to SUBSET--SUM or to any specific
+instance encoding.
+
+The definitions are intended for machines that halt on the relevant inputs.
+In this development, halting is supplied implicitly by the solver and
+time-bound assumptions introduced later, for example via an explicit halting
+assumption or via a polynomial time-bound hypothesis.
+\<close>
 
 definition steps_CL :: "machine ⇒ bool list ⇒ nat" where
   "steps_CL M x =
@@ -203,11 +229,11 @@ definition head0_CL :: "config ⇒ int" where
 definition accept_symbol :: nat where
   "accept_symbol = 3"
 
-text ‹
-  We interpret the symbol under the head on tape 1 at halting time as the
-  machine’s 1-bit Boolean output: symbol 3 denotes “true” (accept), while
-  symbol 2 denotes “false”.
-›
+text \<open>
+We interpret the symbol under the head on tape~1 at halting time as the
+machine's one-bit Boolean output.  The symbol \verb|3| denotes Boolean
+\verb|True| (accept), while the symbol \verb|2| denotes Boolean \verb|False|.
+\<close>
 
 lemma accept_symbol_is_bit1 [simp]:
   "accept_symbol = (if True then 3 else 2)"
@@ -255,37 +281,39 @@ lemma accepts_CL_haltD2:
   "accepts_CL_halt M x ⟹ accepts_CL M x"
   by (simp add: accepts_CL_halt_def)
 
-text ‹
-  The predicate ‹accepts_CL_halt› is the notion of *correct acceptance*
-  used when stating solver correctness.  It ensures that acceptance is
-  only asserted for computations that actually halt, avoiding any
-  ambiguity arising from partial or nonterminating executions.
+text \<open>
+The predicate \verb|accepts_CL_halt| is the notion of \emph{correct acceptance}
+used when stating solver correctness.  It ensures that acceptance is asserted
+only for computations that actually halt, avoiding any ambiguity arising from
+partial or nonterminating executions.
 
-  In particular, all solver correctness assumptions below are phrased
-  in terms of ‹accepts_CL_halt› rather than ‹accepts_CL› alone.
-›
+In particular, all solver-correctness assumptions below are phrased in terms of
+\verb|accepts_CL_halt| rather than \verb|accepts_CL| alone.
+\<close>
 
-text ‹
-  We will reason about Cook–Levin machines mainly via ‹steps_CL› and
-  ‹accepts_CL›, without unfolding the low-level configuration details.
-  Later, in ‹CL_SubsetSum_Solver›, these CL-level notions are specialised
-  to SUBSET-SUM instances (as, s) via an encoding ‹enc as s›, giving us
-  ‹steps_TM› and ‹read0_TM›.
-›
+text \<open>
+We reason about Cook--Levin machines mainly via the abstract notions
+\verb|steps_CL| and \verb|accepts_CL|, without unfolding low-level
+configuration details.  Later, in the locale \verb|CL_SubsetSum_Solver|,
+these Cook--Levin--level notions are specialised to SUBSET--SUM instances
+\verb|(as, s)| via an encoding \verb|enc as s|, yielding the derived
+quantities \verb|steps_TM| and \verb|read0_TM|.
+\<close>
 
-subsection ‹Which input bits does a Cook–Levin machine read?›
+subsection \<open>Which input bits does a Cook--Levin machine read?\<close>
 
-text ‹
-  The set ‹read0_CL M x› collects all indices on the input tape (tape 0)
-  that the head visits before halting on input x.  This abstracts away
-  from the timing of visits and just records which input positions the
-  machine has actually inspected.
+text \<open>
+The set \verb|read0_CL M x| collects all indices on the input tape (tape~0)
+that the head visits before halting on input~\verb|x|.  This abstracts away
+from the timing or frequency of visits and records only which input positions
+the machine has actually inspected.
 
-  These CL-level read-sets are raw observations of machine behaviour on
-  Boolean strings.  The LR-read interface in ‹LR_Read_TM› will later
-  package this low-level reading behaviour into *canonical* «seen» sets
-  on the SUBSET-SUM side, matching the LHS/RHS families at a suitable split.
-›
+These Cook--Levin--level read-sets are raw observations of machine behaviour
+on Boolean strings.  The LR-read interface introduced later in
+\verb|LR_Read_TM| packages this low-level reading behaviour into
+\emph{canonical} ``seen'' sets on the SUBSET--SUM side, aligned with the
+LHS/RHS candidate families at a suitable split position.
+\<close>
 
 definition read0_CL :: "machine ⇒ bool list ⇒ nat set" where
   "read0_CL M x =
@@ -306,14 +334,17 @@ lemma read0_CL_subset_indices:
   "read0_CL M x ⊆ {..<length x}"
   unfolding read0_CL_def by auto
 
-subsection ‹The mathematical SUBSET-SUM predicate›
+subsection \<open>The mathematical SUBSET--SUM predicate\<close>
 
-text ‹
-  We now introduce the “true” SUBSET-SUM predicate, independent of any
-  machine or encoding.  It asks whether there exists a 0/1-vector ‹xs›
-  selecting a subset of ‹as› that sums to the target ‹s›.  This is the
-  mathematical problem we want our CL machines to solve.
-›
+text \<open>
+We now introduce the \emph{mathematical} SUBSET--SUM predicate, independent
+of any machine model or input encoding.  It asks whether there exists a
+$0/1$--vector \verb|xs| selecting a subset of \verb|as| whose weighted sum
+is equal to the target value \verb|s|.
+
+This predicate represents the underlying decision problem that our
+Cook--Levin machines are intended to solve.
+\<close>
 
 definition subset_sum_true :: "int list ⇒ int ⇒ bool" where
   "subset_sum_true as s ⟷
@@ -321,21 +352,25 @@ definition subset_sum_true :: "int list ⇒ int ⇒ bool" where
         (∑ i<length as. as ! i * xs ! i) = s)"
 
 
-subsection ‹Certificate-based view of SUBSET-SUM›
+subsection \<open>Certificate-based view of SUBSET--SUM\<close>
 
-text ‹
-  A natural certificate for SUBSET–SUM is a 0/1-vector ‹xs› of length
-  ‹length as› indicating which elements are chosen.  The predicate
-  ‹ss_cert_ok as s xs› states that:
+text \<open>
+A natural certificate for SUBSET--SUM is a $0/1$--vector \verb|xs| of length
+\verb|length as| indicating which elements of the list \verb|as| are chosen.
+The predicate \verb|ss_cert_ok as s xs| expresses the following conditions:
 
-    • ‹xs› has the right length;
-    • all entries are 0 or 1;
-    • the weighted sum equals ‹s›.
+\begin{itemize}
+\item \verb|xs| has the correct length;
+\item all entries of \verb|xs| are either \verb|0| or \verb|1|;
+\item the weighted sum of the selected entries is equal to the target value
+      \verb|s|.
+\end{itemize}
 
-  The next lemma shows that this certificate notion is equivalent to
-  ‹subset_sum_true›.  This will later be used to prove that SUBSET–SUM is
-  in NP via a verifier machine in the Cook–Levin framework.
-›
+The next lemma shows that this certificate notion is equivalent to the
+predicate \verb|subset_sum_true|.  This equivalence is used later to prove
+that SUBSET--SUM lies in \(\mathcal{NP}\) via a verifier machine in the
+Cook--Levin framework.
+\<close>
 
 definition ss_cert_ok :: "int list ⇒ int ⇒ int list ⇒ bool" where
   "ss_cert_ok as s xs ⟷
@@ -374,32 +409,43 @@ next
     using sum_eq by blast
 qed
 
-subsection ‹SUBSET-SUM is in NP (via an abstract verifier)›
+subsection \<open>SUBSET--SUM is in NP (via an abstract verifier)\<close>
 
-text ‹
-  We now introduce an abstract verifier locale that matches the
-  ‹Cook_Levin.NP› characterization of NP.
+text \<open>
+We now introduce an abstract verifier locale matching the
+\verb|Cook_Levin.NP| characterisation of the class \(\mathcal{NP}\).
 
-  A verifier instance consists of:
+A verifier instance consists of the following components:
 
-    • an instance encoding ‹enc0 :: int list ⇒ int ⇒ string›,
-    • a certificate encoding ‹enc_cert :: int list ⇒ int ⇒ int list ⇒ string›,
-    • a Turing machine ‹V› computing a function ‹fverify›,
-    • a polynomial bound ‹p› on certificate length as a function of
-      instance length, and
-    • a time bound ‹T›.
+\begin{itemize}
+\item an instance encoding \verb|enc0 :: int list ⇒ int ⇒ string|;
+\item a certificate encoding
+      \verb|enc_cert :: int list ⇒ int ⇒ int list ⇒ string|;
+\item a Turing machine \verb|V| computing a Boolean verification function
+      \verb|fverify|;
+\item a polynomial bound \verb|p| on the certificate length as a function of
+      the instance length; and
+\item a time bound \verb|T| on the verifier computation.
+\end{itemize}
 
-  The locale assumptions express that ‹V› is a correct NP-style verifier
-  for SUBSET-SUM with respect to ‹enc0› and ‹enc_cert›: any true instance has a
-  certificate that leads to acceptance, and any accepting computation
-  corresponds to a correct certificate.
+The locale assumptions express that \verb|V| is a correct NP-style verifier
+for SUBSET--SUM with respect to \verb|enc0| and \verb|enc_cert|:
 
-  This gives the standard NP-membership statement:
+\begin{itemize}
+\item for every true SUBSET--SUM instance \verb|(as, s)|, there exists a
+      certificate \verb|xs| such that the verifier accepts
+      \verb|enc0 as s| together with \verb|enc_cert as s xs|;
+\item whenever the verifier accepts an encoded instance and certificate,
+      the corresponding certificate \verb|xs| satisfies the SUBSET--SUM
+      specification.
+\end{itemize}
 
-      SUBSETSUM_lang enc0 ∈ 𝒩𝒫
-
-  for any encoding ‹enc0› admitting such a verifier.
-›
+From these assumptions we obtain the standard NP-membership statement
+\[
+  \verb|SUBSETSUM_lang enc0| \in \mathcal{NP},
+\]
+for any instance encoding \verb|enc0| admitting such a verifier.
+\<close>
 
 locale SS_Verifier_NP =
   fixes k G V p T fverify enc0 enc_cert
@@ -428,30 +474,32 @@ locale SS_Verifier_NP =
     "⋀x u. fverify ⟨x, u⟩ = [𝕀] ⟹ ∃as s. x = enc0 as s"
 
 
-section ‹SUBSET-SUM as a language›
+section \<open>SUBSET--SUM as a language\<close>
 
-text ‹
-  From an instance encoding function ‹enc0› we obtain the language
-
-      SUBSETSUM_lang enc0
-
-  consisting of all strings that encode a true SUBSET-SUM instance.
-›
+text \<open>
+Given an instance-encoding function \verb|enc0|, we obtain the language
+\verb|SUBSETSUM_lang enc0| consisting of all strings that encode true
+SUBSET--SUM instances.
+\<close>
 
 definition SUBSETSUM_lang :: "(int list ⇒ int ⇒ string) ⇒ language" where
   "SUBSETSUM_lang enc0 ≡
      {x. ∃as s. x = enc0 as s ∧ subset_sum_true as s}"
 
-subsection ‹SUBSET-SUM is in NP (relative to enc0)›
+subsection \<open>SUBSET--SUM is in NP (relative to enc0)\<close>
 
-text ‹
-  The next lemma packages the ‹SS_Verifier_NP› locale into the
-  alternative NP characterization ‹NP_output_len_1› from ‹Cook_Levin.NP›.
-  It shows that any suitable verifier induces a language
-  ‹SUBSETSUM_lang enc0› in ‹𝒩𝒫›.
+text \<open>
+The following lemma packages the locale \verb|SS_Verifier_NP| into the
+alternative NP characterization \verb|NP_output_len_1| provided by
+\verb|Cook_Levin.NP|.
 
-  This is the formal “SUBSET-SUM is in NP” statement for the encoding ‹enc0›.
-›
+It shows that any suitable verifier yields a language
+\verb|SUBSETSUM_lang enc0| that belongs to \(\mathcal{NP}\).
+
+This is the formal statement that SUBSET--SUM lies in NP with respect to
+the chosen instance encoding \verb|enc0|.
+\<close>
+
 lemma SUBSETSUM_in_NP_from_verifier:
   fixes k G V p T fverify enc0 enc_cert
   assumes verif: "SS_Verifier_NP k G V p T fverify enc0 enc_cert"
@@ -565,22 +613,32 @@ proof -
 qed
 
 
-subsection ‹A Cook–Levin machine that solves SUBSET-SUM›
+subsection \<open>A Cook--Levin machine that solves SUBSET--SUM\<close>
 
-text ‹
-  The locale ‹CL_SubsetSum_Solver› packages the basic assumptions for a
-  Cook–Levin machine that decides SUBSET-SUM:
+text \<open>
+The locale \verb|CL_SubsetSum_Solver| packages the basic assumptions for a
+Cook--Levin Turing machine that decides SUBSET--SUM.
 
-    • ‹M› is a well-formed ‹k_tapes› machine with start state ‹q0›;
-    • ‹enc› encodes instances ‹(as,s)› as Boolean lists;
-    • ‹M› accepts exactly the encodings of true instances:
+It is parameterised by:
 
-          accepts_CL M (enc as s) ⟷ subset_sum_true as s.
+\begin{itemize}
+\item a machine \verb|M| that is well formed as a \verb|k_tapes| machine with
+      start state \verb|q0|;
+\item an encoding function \verb|enc| that maps instances \((as,s)\) to Boolean
+      input strings;
+\item a correctness condition stating that \verb|M| accepts exactly the
+      encodings of true SUBSET--SUM instances:
+      \[
+        \verb|accepts_CL M (enc as s)| \;\longleftrightarrow\;
+        \verb|subset_sum_true as s|.
+      \]
+\end{itemize}
 
-  The parameter ‹q0› is kept to match the Cook–Levin library’s
-  well-formedness predicate ‹turing_machine k_tapes q0 M›; the execution
-  semantics used below start from ‹start_config›.
-›
+The parameter \verb|q0| is included to match the Cook--Levin library’s
+well-formedness predicate \verb|turing_machine k_tapes q0 M|.
+All execution semantics used below start from the corresponding
+\verb|start_config|.
+\<close>
 
 locale CL_SubsetSum_Solver =
   fixes M   :: machine
@@ -591,8 +649,11 @@ locale CL_SubsetSum_Solver =
     "⋀as s. accepts_CL_halt M (enc as s) ⟷ subset_sum_true as s"
 begin
 
-text ‹We will later relate the abstract cost ‹steps_TM› to the concrete
-Cook–Levin step count ‹steps_CL M (enc as s)› in the LR-read locale.›
+text \<open>
+We will later relate the abstract cost \verb|steps_TM| to the concrete
+Cook--Levin step count \verb|steps_CL M (enc as s)| in the
+\verb|LR_Read_TM| locale.
+\<close>
 
 definition read0_TM :: "int list ⇒ int ⇒ nat set" where
   "read0_TM as s = read0_CL M (enc as s)"
@@ -604,24 +665,27 @@ lemma read0_TM_subset:
 
 end  (* context CL_SubsetSum_Solver *)
 
+section \<open>LR-read TM interface and lower bound inheritance\<close>
 
-section ‹LR-read TM interface and lower bound inheritance›
+text \<open>
+We now introduce the Cook--Levin--side LR-read interface and import the
+abstract lower bound via \verb|SubsetSum_Reader_Model| (from
+\verb|SubsetSum_DecisionTree|).
 
-text ‹
-  We now introduce the Cook–Levin side LR-read interface and import the 
-  abstract lower bound via ‹SubsetSum_Reader_Model› (from 
-  ‹SubsetSum_DecisionTree›).
+A Cook--Levin machine is considered polynomial-time on SUBSET-SUM if its
+step count on an instance \verb|(as, s)| is bounded by some polynomial in
+\verb|length as|.  We deliberately take \verb|length as| as the size
+parameter and ignore the bit-length of \verb|enc as s| at this stage.
 
-  A Cook–Levin machine is considered polynomial-time on SUBSET-SUM if its
-  step-count on an instance (as,s) is bounded by some polynomial in
-  ‹length as› (we take ‹length as› as the size parameter and ignore the
-  bit-length of ‹enc as s› here). This choice of size parameter is 
-  deliberate: it aligns the Cook–Levin semantics with the abstract 
-  decision-tree model used in ‹SubsetSum_DecisionTree›, and is not meant 
-  to claim robustness under all encodings. In particular, this file does 
-  not attempt to relate ‹length (enc as s)› to the bit-length of the 
-  integers in ‹as›. This is captured by:
-›
+This choice aligns the Cook--Levin execution semantics with the abstract
+decision-tree model used in \verb|SubsetSum_DecisionTree|.  It is not
+intended to claim robustness under arbitrary encodings.  In particular,
+this file does not attempt to relate \verb|length (enc as s)| to the
+bit-length of the integers in \verb|as|.
+
+These modelling assumptions are captured by the LR-read interface
+introduced below.
+\<close>
 
 definition polytime_CL_machine
   :: "machine ⇒ (int list ⇒ int ⇒ bool list) ⇒ bool"
@@ -630,57 +694,79 @@ where
      (∃(c::real)>0. ∃(d::nat).
         ∀as s. steps_CL M (enc as s)
                ≤ nat (ceiling (c * (real (length as)) ^ d)))"
-text ‹
-  The size parameter used here is ‹length as›, matching the abstract
-  decision-tree model.  We do not claim robustness under alternative
-  encodings or under bit-length measures; this theory only provides a
-  bridge between the LR-read model and Cook–Levin execution semantics.
-  This is a modelling choice for the bridge, not a claim about standard
-  bit-complexity for SUBSET–SUM.
-›
 
-text ‹
-  The locale ‹LR_Read_TM› is the Cook–Levin analogue of ‹SubsetSum_Reader_Model›.
-  It assumes that:
+text \<open>
+The size parameter used here is \verb|length as|, matching the abstract
+decision-tree model.  We do not claim robustness under alternative
+encodings or under bit-length measures.  This theory provides only a
+bridge between the LR-read model and Cook--Levin execution semantics.
+This is a modelling choice for the bridge, not a claim about standard
+bit-complexity for SUBSET-SUM.
+\<close>
 
-    • ‹M, q0, enc› form a SUBSET-SUM solver in the sense of
-      ‹CL_SubsetSum_Solver›;
+text \<open>
+The locale \verb|LR_Read_TM| is the Cook--Levin analogue of
+\verb|SubsetSum_Reader_Model|.  It assumes the following:
 
-    • for each instance (as,s) with distinct subset sums there exists
-      a split index k at which the abstract “seen” sets ‹seenL_TM› and
-      ‹seenR_TM› coincide with the canonical sets
-      ‹LHS (e_k as s k) (length as)› and
-      ‹RHS (e_k as s k) (length as)›;
+\begin{itemize}
+\item \verb|M, q0, enc| form a SUBSET-SUM solver in the sense of
+      \verb|CL_SubsetSum_Solver|.
 
-      i.e. we postulate equalities
+\item For each instance \verb|(as, s)| with \verb|distinct_subset_sums as|,
+      there exists a split index \verb|k| at which the abstract ``seen''
+      sets \verb|seenL_TM| and \verb|seenR_TM| coincide with the canonical
+      split sets
+      \[
+        \verb|LHS (e_k as s k) (length as)| \quad\text{and}\quad
+        \verb|RHS (e_k as s k) (length as)|.
+      \]
 
-          seenL_TM as s k = LHS (e_k as s k) (length as)
-          seenR_TM as s k = RHS (e_k as s k) (length as)
+      That is, for some \verb|k \<le> length as| we postulate the equalities
+      \[
+        \verb|seenL_TM as s k| =
+        \verb|LHS (e_k as s k) (length as)|,
+      \]
+      \[
+        \verb|seenR_TM as s k| =
+        \verb|RHS (e_k as s k) (length as)|.
+      \]
 
-      for some k ≤ length as on each such instance. These equalities are the
-      core LR-read assumption: they assert that the machine’s observable
-      information, at some split k, covers exactly the canonical LHS/RHS
-      candidate families.
+      These equalities constitute the core LR-read assumption.  They assert
+      that, at some split position \verb|k|, the machine's observable
+      information flow covers exactly the canonical LHS/RHS candidate
+      families.
 
-      This is the strong LR-read requirement: at the critical split ‹k›, the
-      machine’s information flow covers exactly the LHS/RHS families that drive
-      the decision-tree lower bound, not merely a subset of them. This is a
-      strong hypothesis, expressed as set equalities rather than inclusions,
-      chosen so that the abstract decision-tree lower bound transfers without
-      loss to the Cook–Levin setting.
+      This is a strong LR-read requirement: at the critical split \verb|k|,
+      the machine's information covers precisely the LHS/RHS families that
+      drive the decision-tree lower bound, not merely a subset of them.
+      The hypothesis is expressed as set equalities rather than inclusions,
+      so that the abstract decision-tree lower bound transfers directly
+      to the Cook--Levin setting.
 
-    • for all as, s, k, the step-count is bounded below by
+\item For all \verb|as|, \verb|s|, and \verb|k|, the step count satisfies the
+      lower bound
+      \[
+        \verb|steps_TM as s| \ge
+        \verb|card (seenL_TM as s k)| +
+        \verb|card (seenR_TM as s k)|.
+      \]
+\end{itemize}
 
-          steps_TM as s ≥ card (seenL_TM as s k) + card (seenR_TM as s k).
+These conditions are assumptions about the machine's information flow.
+They are not derived from Cook--Levin execution semantics alone.  They
+match exactly the abstract axioms of \verb|SubsetSum_Reader_Model| under
+the identifications
+\[
+  \verb|steps = steps_TM|,\quad
+  \verb|seenL = seenL_TM|,\quad
+  \verb|seenR = seenR_TM|.
+\]
 
-  These conditions are assumptions about the machine’s information flow; they
-  are not derived from the Cook–Levin semantics alone. They match the abstract 
-  axioms of ‹SubsetSum_Reader_Model› with ‹steps = steps_TM› and ‹seenL = seenL_TM›, 
-  ‹seenR = seenR_TM›.  Once the interpretation succeeds, we obtain the √(2ⁿ) 
-  lower bound specialised to the Cook–Levin step-count of ‹M›, and in 
-  particular the impossibility of a single polynomial upper bound on all 
-  distinct-subset-sums instances.
-›
+Once the interpretation succeeds, the \(\sqrt{2^n}\) lower bound is
+obtained specialised to the Cook--Levin step count of \verb|M|.  In
+particular, this yields the impossibility of a single polynomial upper
+bound on \verb|steps_TM| over all distinct-subset-sums instances.
+\<close>
 
 locale LR_Read_TM =
   CL_SubsetSum_Solver M q0 enc
@@ -703,11 +789,13 @@ locale LR_Read_TM =
 begin
 
 
-text ‹
-  We instantiate the abstract lower-bound locale ‹SubsetSum_Reader_Model› with
-  ‹steps_TM›, ‹seenL_TM› and ‹seenR_TM›.  All theorems of
-  ‹SubsetSum_Reader_Model› then become available under the prefix ‹Reader›.
-›
+text \<open>
+We instantiate the abstract lower-bound locale
+\verb|SubsetSum_Reader_Model| with the concrete objects
+\verb|steps_TM|, \verb|seenL_TM|, and \verb|seenR_TM|.
+All theorems proved in \verb|SubsetSum_Reader_Model| then become available
+under the locale interpretation prefix \verb|Reader|.
+\<close>
 
 interpretation Reader:
   SubsetSum_Reader_Model steps_TM seenL_TM seenR_TM
@@ -728,15 +816,16 @@ proof
     using k_le covL covR step_ge by blast
 qed
 
+text \<open>
+From this point on, all lower-bound statements are inherited from
+\verb|SubsetSum_Reader_Model| and applied to the Cook--Levin specialised
+cost measures.
 
-text ‹
-  From this point on, all lower-bound statements are inherited from
-  ‹SubsetSum_Reader_Model› and applied to the Cook–Levin-specialised measures.
-
-  Specialising ‹Reader.subset_sum_sqrt_lower_bound› yields the concrete
-  lower bound for ‹steps_TM›.  This is the TM-level version of the
-  √(2ⁿ) decision-tree bound.
-›
+In particular, specialising
+\verb|Reader.subset_sum_sqrt_lower_bound| yields the concrete lower bound
+for \verb|steps_TM|.  This is the Turing-machine-level analogue of the
+\(\sqrt{2^n}\) decision-tree lower bound.
+\<close>
 
 theorem subset_sum_sqrt_lower_bound_TM:
   fixes as :: "int list" and s :: int and n :: nat
@@ -761,25 +850,31 @@ proof -
     by simp
 qed
 
-text ‹
-  We now show that no machine satisfying the LR-read assumptions can have
-  its step-count bounded by a single polynomial on all instances with distinct 
-  subset sums. The proof combines the analytic lemma
-   ‹exp_beats_poly_ceiling_strict_TM› with the √(2ⁿ) lower bound and the
-  distinct-subset-sums family from ‹exists_distinct_family_TM›.
+text \<open>
+We now show that no machine satisfying the LR-read assumptions can have its
+step count bounded by a single polynomial over all instances with
+\verb|distinct_subset_sums as|.  The proof combines the analytic lemma
+\verb|exp_beats_poly_ceiling_strict_TM| with the
+\(\sqrt{2^n}\) lower bound and the canonical distinct-subset-sums family
+provided by \verb|exists_distinct_family_TM|.
 
-  Note carefully the scope of this impossibility result:
+The scope of this impossibility result is deliberately restricted:
 
-    • it is stated only for the subfamily of instances with
-      ‹distinct_subset_sums as›;
+\begin{itemize}
+\item It is stated only for the subfamily of instances satisfying
+      \verb|distinct_subset_sums as|.
 
-    • it does **not** claim that ‹M› cannot be polynomial-time on arbitrary
-      inputs; it only rules out a uniform polynomial bound that holds on
-      *all* distinct-subset-sums inputs simultaneously.
+\item It does \emph{not} assert that the machine \verb|M| fails to run in
+      polynomial time on arbitrary inputs.  Rather, it rules out the
+      existence of a \emph{single} polynomial bound that holds uniformly
+      over all distinct-subset-sums instances.
+\end{itemize}
 
-  This is exactly the quantitative content imported from
-  ‹SubsetSum_DecisionTree› via ‹SubsetSum_Reader_Model› and the LR-read axioms.
-›
+This is exactly the quantitative content imported from
+\verb|SubsetSum_DecisionTree| via \verb|SubsetSum_Reader_Model| and the
+LR-read assumptions, and no stronger claim is made.
+\<close>
+
 theorem no_polytime_TM_on_distinct_family:
   shows "¬ (∃(c::real)>0. ∃(d::nat).
              ∀as s. distinct_subset_sums as ⟶
@@ -860,15 +955,17 @@ proof
   show False using len_as by auto
 qed
 
-text ‹
-  The same impossibility result can be restated directly in terms of the
-  underlying Cook–Levin step-count ‹steps_CL› on encoded instances.  This
-  is the CL-level version used in the P ≠ NP theory: the theorem
-  ‹no_polytime_CL_on_distinct_family›.
+text \<open>
+The same impossibility result can be restated directly in terms of the
+underlying Cook--Levin step count \verb|steps_CL| on encoded instances.
+This is the CL-level formulation used in the P~$\neq$~NP theory, captured
+by the theorem \verb|no_polytime_CL_on_distinct_family|.
 
-  It says that no single polynomial bound can dominate ‹steps_CL M (enc as s)›
-  on all inputs with ‹distinct_subset_sums as›, assuming LR-read.
-›
+It states that, under the LR-read assumptions, there exists no single
+polynomial that bounds \verb|steps_CL M (enc as s)| uniformly over all
+inputs satisfying \verb|distinct_subset_sums as|.
+\<close>
+
 corollary no_polytime_CL_on_distinct_family:
   shows "¬ (∃(c::real)>0. ∃(d::nat).
              ∀as s. distinct_subset_sums as ⟶
